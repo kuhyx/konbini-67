@@ -12,11 +12,19 @@
 
 import { CIGARETTES, SLOT_TO_CIGARETTE } from './catalog'
 import { customerTotal, makeCustomer, tenderValue } from './customer'
-import { addDenom, type Denom, DENOMS, EMPTY_PURSE, type Purse, removeDenom } from './money'
+import { addDenom, type Denom, DENOMS, EMPTY_PURSE, formatYen, type Purse, removeDenom } from './money'
 import { createRng, type Rng } from './rng'
-import { gradeChange, parMs, speedPoints } from './score'
+import { type ChangeGrade, gradeChange, parMs, speedPoints } from './score'
 import { type ShelfSpec, shelfSpecForShift } from './shelf'
-import { EMPTY_TALLY, type Customer, type Phase, type ShiftEvent, type ShiftTally } from './types'
+import {
+  EMPTY_TALLY,
+  type Customer,
+  GAZE,
+  type Gaze,
+  type Phase,
+  type ShiftEvent,
+  type ShiftTally,
+} from './types'
 
 /**
  * How long one shift runs, in milliseconds.
@@ -38,9 +46,9 @@ export interface ShiftState {
    */
   readonly shelfDone: boolean
   /**
-   * Whether the lookup chart is open.
+   * Where the clerk is looking. Anything but `counter` hides the customer.
    */
-  readonly lookupOpen: boolean
+  readonly gaze: Gaze
   /**
    * Change counted out so far.
    */
@@ -86,7 +94,7 @@ export const createShift = (seed: number, shift = 1): ShiftState => {
     customer: makeCustomer(rng, 1, shelf),
     scanned: 0,
     shelfDone: false,
-    lookupOpen: false,
+    gaze: 'counter',
     tray: EMPTY_PURSE,
     elapsedMs: 0,
     customerStartMs: 0,
@@ -135,7 +143,7 @@ const advance = (state: ShiftState, tally: ShiftTally, message: string): ShiftSt
     customer: makeCustomer(rng, state.customer.id + 1, state.shelf),
     scanned: 0,
     shelfDone: false,
-    lookupOpen: false,
+    gaze: 'counter',
     tray: EMPTY_PURSE,
     customerStartMs: state.elapsedMs,
     tally,
@@ -186,19 +194,33 @@ const onPickSlot = (state: ShiftState, slot: number): ShiftState => {
     ...state,
     phase: 'changing',
     shelfDone: true,
-    lookupOpen: false,
+    gaze: 'counter',
     tally: isRight ? state.tally : { ...state.tally, wrongBrand: state.tally.wrongBrand + 1 },
     message: isRight ? 'Right one. Now the change.' : `That's not ${label}. Now the change.`,
   }
 }
 
+/**
+ * Turns the clerk's head.
+ *
+ * Costs nothing but the time it takes — a real clerk is not fined for glancing
+ * at the clock. The cost is that the shift keeps running while the customer is
+ * out of view, so whatever you looked away to find, you had better remember.
+ */
+const onLook = (state: ShiftState, at: Gaze): ShiftState => {
+  if (isFrozen(state) || state.gaze === at) {
+    return state
+  }
+  return { ...state, gaze: at, message: GAZE[at].label }
+}
+
 const onUseLookup = (state: ShiftState): ShiftState => {
-  if (state.shelf.mode === 'labelled' || state.lookupOpen) {
+  if (state.shelf.mode === 'labelled' || state.gaze === 'notebook') {
     return state
   }
   return {
     ...state,
-    lookupOpen: true,
+    gaze: 'notebook',
     frozenUntilMs: state.elapsedMs + state.shelf.lookupFreezeMs,
     tally: {
       ...state.tally,
@@ -225,13 +247,25 @@ const onTakeBack = (state: ShiftState, denom: number): ShiftState => {
 
 /**
  * Feedback line for a graded transaction.
+ *
+ * A wrong total is not one mistake but two, and they behave nothing alike:
+ *
+ * - **Short-changed the customer** (`drawerDelta > 0`). They count it, they
+ *   notice, they say so. You are told the amount because they would tell you.
+ * - **Overpaid the customer** (`drawerDelta < 0`). Nobody in the history of
+ *   retail has handed money back. The customer leaves happy and the *shop* is
+ *   short — which is why it surfaces silently here and lands in the books at
+ *   the end of the shift rather than being announced at the counter.
  */
-const confirmMessage = (isCorrect: boolean, surplusCoins: number): string => {
-  if (!isCorrect) {
-    return 'Wrong change. They noticed.'
+const confirmMessage = (grade: ChangeGrade): string => {
+  if (grade.drawerDelta > 0) {
+    return `You're ${formatYen(grade.drawerDelta)} short. They counted it.`
   }
-  if (surplusCoins > 0) {
-    return `Right, but ${String(surplusCoins)} coin(s) too many.`
+  if (grade.drawerDelta < 0) {
+    return `They took it and left. The drawer is ${formatYen(-grade.drawerDelta)} down.`
+  }
+  if (grade.surplusCoins > 0) {
+    return `Right, but ${String(grade.surplusCoins)} coin(s) too many.`
   }
   return 'Exact. Next.'
 }
@@ -252,7 +286,7 @@ const onConfirm = (state: ShiftState): ShiftState => {
     drawerDelta: state.tally.drawerDelta + grade.drawerDelta,
     score: state.tally.score + grade.points + speed,
   }
-  return advance(state, tally, confirmMessage(grade.correct, grade.surplusCoins))
+  return advance(state, tally, confirmMessage(grade))
 }
 
 /**
@@ -276,6 +310,9 @@ export const reduce = (state: ShiftState, event: ShiftEvent): ShiftState => {
     }
     case 'pick-slot': {
       return onPickSlot(state, event.slot)
+    }
+    case 'look': {
+      return onLook(state, event.at)
     }
     case 'use-lookup': {
       return onUseLookup(state)

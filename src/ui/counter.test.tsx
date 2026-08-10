@@ -1,10 +1,11 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { CIGARETTES } from '../core/catalog'
-import { makeCustomer } from '../core/customer'
+import { makeCustomer, tenderValue } from '../core/customer'
 import { createRng } from '../core/rng'
 import { shelfSpecForShift } from '../core/shelf'
 import { requestLine } from '../core/speech'
+import { formatYen } from '../core/money'
 import type { Customer } from '../core/types'
 import { Counter } from './counter'
 
@@ -77,12 +78,22 @@ describe('Counter', () => {
     expect(container.querySelectorAll('.rung')).toHaveLength(1)
   })
 
-  it('shows the total and tender only once everything is rung up', () => {
+  it('shows the basket total once everything is rung up', () => {
     const customer = withoutCigarettes()
     render(<Counter customer={customer} scanned={99} showTotal />)
+    // A real register does total the basket for you — that part is not the
+    // player's arithmetic, so it stays.
     expect(screen.getByText('TOTAL')).toBeInTheDocument()
-    expect(screen.getByText('TENDERED')).toBeInTheDocument()
-    // The whole premise: the game never shows the change due.
-    expect(screen.getByText(/Work out the change yourself/)).toBeInTheDocument()
+  })
+
+  it('never reveals what the customer handed over', () => {
+    const customer = withoutCigarettes()
+    render(<Counter customer={customer} scanned={99} showTotal />)
+    // The money is on the counter; counting it is the player's job, so the
+    // tendered amount must not appear anywhere — nor the change due.
+    expect(screen.queryByText('TENDERED')).not.toBeInTheDocument()
+    const tendered = formatYen(tenderValue(customer))
+    expect(screen.queryByText(tendered)).not.toBeInTheDocument()
+    expect(screen.getByText(/Count it, then count out the change/)).toBeInTheDocument()
   })
 })

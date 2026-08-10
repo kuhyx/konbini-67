@@ -1,5 +1,5 @@
 import type { JSX } from 'react'
-import { type Denom, DENOMS, formatYen, type Purse, purseCount, purseValue } from '../core/money'
+import { type Denom, DENOMS, formatYen, type Purse } from '../core/money'
 
 export interface TillProperties {
   readonly tray: Purse
@@ -39,12 +39,8 @@ export const Till = ({ tray, enabled, onGive, onTakeBack }: TillProperties): JSX
         )
       })}
     </div>
-    <div className="total" style={{ marginTop: 'var(--sp-md)' }}>
-      <span>IN HAND</span>
-      <span>{formatYen(purseValue(tray))}</span>
-    </div>
     <p className="hint">
-      {purseCount(tray)} coin(s)/note(s) — the fewer the better
+      Count it out yourself — nothing here adds it up for you.
     </p>
     <div className="actions">
       {DENOMS.map((denom) =>

@@ -3,18 +3,19 @@ import { STORE_NAME } from './core/catalog'
 import { type Clock, realClock } from './core/clock'
 import type { Denom } from './core/money'
 import { createShift, reduce, SHIFT_MS } from './core/shift'
+import { GAZE, type Gaze } from './core/types'
+import { shiftEndsAt } from './core/wallclock'
 import { Counter } from './ui/counter'
 import { Shelf } from './ui/shelf'
 import { ShiftOver } from './ui/shift-over'
 import { Till } from './ui/till'
+import { WallClock } from './ui/wall-clock'
 import { useGameLoop } from './ui/use-game-loop'
 
 /**
  * Seed for the opening shift; "Another shift" advances it.
  */
 const FIRST_SEED = 1
-
-const clampSeconds = (ms: number): string => String(Math.max(0, Math.ceil(ms / 1000)))
 
 export interface AppProperties {
   /**
@@ -52,6 +53,9 @@ export const App = ({ clock = realClock }: AppProperties = {}): JSX.Element => {
   const pick = useCallback((slot: number) => {
     dispatch({ kind: 'pick-slot', slot })
   }, [])
+  const look = useCallback((at: Gaze) => {
+    dispatch({ kind: 'look', at })
+  }, [])
 
   if (state.phase === 'closed') {
     return (
@@ -63,6 +67,8 @@ export const App = ({ clock = realClock }: AppProperties = {}): JSX.Element => {
 
   const isChanging = state.phase === 'changing'
   const isShelf = state.phase === 'shelf'
+  const isLookingUp = state.gaze === 'clock'
+  const canSeeCustomer = GAZE[state.gaze].canSeeCustomer
 
   return (
     <div className="app">
@@ -72,10 +78,11 @@ export const App = ({ clock = realClock }: AppProperties = {}): JSX.Element => {
           <small>KONBINI · SHIFT {shiftNo}</small>
         </div>
         <div className="stats">
-          <div className="stat">
-            TIME
-            <b>{clampSeconds(SHIFT_MS - state.elapsedMs)}s</b>
-          </div>
+          <WallClock
+            elapsedMs={state.elapsedMs}
+            endsAt={shiftEndsAt(SHIFT_MS)}
+            isLookingUp={isLookingUp}
+          />
           <div className="stat">
             SERVED
             <b>{state.tally.served}</b>
@@ -92,13 +99,22 @@ export const App = ({ clock = realClock }: AppProperties = {}): JSX.Element => {
       </div>
 
       <div className="grid">
-        <Counter customer={state.customer} scanned={state.scanned} showTotal={isChanging} />
+        {canSeeCustomer ? (
+          <Counter customer={state.customer} scanned={state.scanned} showTotal={isChanging} />
+        ) : (
+          <div className="panel looking-away">
+            <h2>You&rsquo;re looking away</h2>
+            <p className="hint">
+              The customer, what they asked for and the receipt are all behind you.
+            </p>
+          </div>
+        )}
 
         {isShelf ? (
           <Shelf
             mode={state.shelf.mode}
             enabled
-            lookupOpen={state.lookupOpen}
+            lookupOpen={state.gaze === 'notebook'}
             onPick={pick}
           />
         ) : (
@@ -131,7 +147,7 @@ export const App = ({ clock = realClock }: AppProperties = {}): JSX.Element => {
           <button
             type="button"
             className="ghost"
-            disabled={state.lookupOpen}
+            disabled={state.gaze === 'notebook'}
             onClick={() => {
               dispatch({ kind: 'use-lookup' })
             }}
@@ -139,6 +155,15 @@ export const App = ({ clock = realClock }: AppProperties = {}): JSX.Element => {
             Check the chart (−{state.shelf.lookupPenalty})
           </button>
         ) : undefined}
+        <button
+          type="button"
+          className="ghost"
+          onClick={() => {
+            look(isLookingUp ? 'counter' : 'clock')
+          }}
+        >
+          {isLookingUp ? GAZE.counter.label : GAZE.clock.label}
+        </button>
       </div>
     </div>
   )

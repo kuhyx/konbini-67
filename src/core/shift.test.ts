@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CIGARETTES } from './catalog'
 import { DENOMS, EMPTY_PURSE, greedyChange, purseValue } from './money'
 import { changeOwed, createShift, lineCount, reduce, SHIFT_MS, type ShiftState } from './shift'
-import { EVENT_KIND_ORDER, type ShiftEvent } from './types'
+import { EVENT_KIND_ORDER, GAZE, GAZE_ORDER, type ShiftEvent } from './types'
 
 /**
  * Rings up everything in the current basket.
@@ -56,6 +56,9 @@ const sampleEvent = (kind: (typeof EVENT_KIND_ORDER)[number]): ShiftEvent => {
     }
     case 'pick-slot': {
       return { kind, slot: 3 }
+    }
+    case 'look': {
+      return { kind, at: 'clock' }
     }
     case 'tick': {
       return { kind, deltaMs: 16 }
@@ -266,6 +269,43 @@ describe('the cigarette shelf', () => {
   })
 })
 
+describe('where the clerk is looking', () => {
+  it('starts facing the counter, seeing the customer', () => {
+    expect(createShift(1).gaze).toBe('counter')
+  })
+
+  it('turns the head to each surface in turn', () => {
+    let state = createShift(1)
+    // Starts on the counter, so look away first and come back at the end —
+    // looking where you already look is a no-op, covered separately below.
+    const awayThenBack = [...GAZE_ORDER.filter((gaze) => gaze !== 'counter'), 'counter' as const]
+    for (const at of awayThenBack) {
+      state = reduce(state, { kind: 'look', at })
+      expect(state.gaze).toBe(at)
+      expect(state.message).toBe(GAZE[at].label)
+    }
+  })
+
+  it('ignores looking where you are already looking', () => {
+    const state = reduce(createShift(1), { kind: 'look', at: 'clock' })
+    expect(reduce(state, { kind: 'look', at: 'clock' })).toStrictEqual(state)
+  })
+
+  it('cannot turn away while the chart still has you frozen', () => {
+    const frozen = reduce(createShift(1, 4), { kind: 'use-lookup' })
+    expect(frozen.frozenUntilMs).toBeGreaterThan(frozen.elapsedMs)
+    expect(reduce(frozen, { kind: 'look', at: 'counter' })).toStrictEqual(frozen)
+  })
+
+  it('hides the customer everywhere except the counter', () => {
+    expect(GAZE.counter.canSeeCustomer).toBe(true)
+    const awayFromCounter = GAZE_ORDER.filter((gaze) => gaze !== 'counter')
+    for (const at of awayFromCounter) {
+      expect(GAZE[at].canSeeCustomer).toBe(false)
+    }
+  })
+})
+
 describe('the lookup chart', () => {
   it('is unavailable while the names are still on the shelf', () => {
     const state = createShift(1, 1)
@@ -275,7 +315,7 @@ describe('the lookup chart', () => {
   it('costs score and freezes you once the names fade', () => {
     const state = createShift(1, 4)
     const after = reduce(state, { kind: 'use-lookup' })
-    expect(after.lookupOpen).toBe(true)
+    expect(after.gaze).toBe('notebook')
     expect(after.tally.lookupsUsed).toBe(1)
     expect(after.tally.score).toBe(-state.shelf.lookupPenalty)
     expect(after.frozenUntilMs).toBeGreaterThan(after.elapsedMs)
@@ -309,6 +349,34 @@ describe('counting out change', () => {
     expect(state.tray[100]).toBe(1)
     state = reduce(state, { kind: 'take-back', denom: 100 })
     expect(state.tray[100]).toBe(0)
+  })
+
+  // The two ways of getting it wrong behave nothing alike, which is the whole
+  // point of naming them separately.
+  it('tells you the amount when you short-change the customer', () => {
+    const ready = changing()
+    const owed = changeOwed(ready)
+    // Hand over one ¥10 coin less than the correct change.
+    let state = payExact(ready)
+    state = reduce(state, { kind: 'take-back', denom: 10 })
+    const after = reduce(state, { kind: 'confirm' })
+    expect(after.message).toContain('short')
+    expect(after.message).toContain('They counted it')
+    expect(after.tally.drawerDelta).toBe(10)
+    expect(owed).toBeGreaterThan(0)
+  })
+
+  it('says nothing to the customer when you overpay, but books the loss', () => {
+    const ready = changing()
+    // Hand over one ¥10 coin more than the correct change: the customer is
+    // delighted and silent, and the drawer is the thing that suffers.
+    let state = payExact(ready)
+    state = reduce(state, { kind: 'give', denom: 10 })
+    const after = reduce(state, { kind: 'confirm' })
+    expect(after.message).toContain('took it and left')
+    expect(after.message).toContain('drawer is')
+    expect(after.message).toContain('¥10')
+    expect(after.tally.drawerDelta).toBe(-10)
   })
 
   it('ignores a value that is not a real denomination', () => {

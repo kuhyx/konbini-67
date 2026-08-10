@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import { ITEMS } from '../core/catalog'
-import { customerTotal, tenderValue } from '../core/customer'
+import { customerTotal } from '../core/customer'
 import { requestLine } from '../core/speech'
 import { formatYen } from '../core/money'
 import type { Customer } from '../core/types'
@@ -47,11 +47,9 @@ export const Counter = ({ customer, scanned, showTotal }: CounterProperties): JS
             <span>TOTAL</span>
             <span>{formatYen(customerTotal(customer))}</span>
           </div>
-          <div className="tender">
-            <span>TENDERED</span>
-            <span>{formatYen(tenderValue(customer))}</span>
-          </div>
-          <p className="owed-hidden">Work out the change yourself.</p>
+          <p className="owed-hidden">
+            They put their money on the counter. Count it, then count out the change.
+          </p>
         </>
       ) : (
         <div className="total">

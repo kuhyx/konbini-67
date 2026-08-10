@@ -72,23 +72,49 @@ describe('App', () => {
     // and the message becomes feedback on what just happened.
     expect(screen.getByText(/SERVED/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Scan item' })).toBeEnabled()
-    expect(screen.getByText(/Next|noticed|too many/)).toBeInTheDocument()
+    expect(screen.getByText(/Next|counted it|drawer is|too many/)).toBeInTheDocument()
   })
 
-  it('runs the clock down while the shift is open', () => {
+  it('shows no countdown anywhere while the shift runs', () => {
     const raf = installRaf()
     const clock = createManualClock()
-    const { container } = render(<App clock={clock} />)
+    render(<App clock={clock} />)
     expect(raf.pending()).toBe(1)
 
-    const readTimer = (): string => container.querySelector(':scope .stat b')?.textContent ?? ''
-    expect(readTimer()).toBe('180s')
-
-    clock.advance(5000)
+    clock.advance(45_000)
     act(() => {
       raf.pump()
     })
-    expect(readTimer()).toBe('175s')
+    // The old "175s" readout is gone: nothing on screen counts down for you.
+    expect(screen.queryByText(/^\d+s$/)).not.toBeInTheDocument()
+    expect(screen.queryByText('TIME')).not.toBeInTheDocument()
+  })
+
+  it('reads the wall clock only when you look up at it', async () => {
+    const raf = installRaf()
+    const clock = createManualClock()
+    render(<App clock={clock} />)
+
+    // Face is blank until you turn your head — a clock on the wall is not in
+    // your field of view while you are working the counter.
+    expect(screen.queryByText('22:00')).not.toBeInTheDocument()
+
+    clock.advance(45_000)
+    act(() => {
+      raf.pump()
+    })
+    await userEvent.click(screen.getByRole('button', { name: /Look at the clock/i }))
+
+    // 45s of a 180s shift is a quarter of 22:00-23:00.
+    expect(screen.getByText('22:15')).toBeInTheDocument()
+    expect(screen.getByText(/off at 23:00/)).toBeInTheDocument()
+    // And looking away costs you sight of the customer.
+    expect(screen.getByText(/You’re looking away/)).toBeInTheDocument()
+
+    // Turning back restores the counter and blanks the clock face again.
+    await userEvent.click(screen.getByRole('button', { name: /Back to the counter/i }))
+    expect(screen.queryByText('22:15')).not.toBeInTheDocument()
+    expect(screen.queryByText(/You’re looking away/)).not.toBeInTheDocument()
   })
 
   it('shows the summary when the shift ends, and starts a new one', async () => {

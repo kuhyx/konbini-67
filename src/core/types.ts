@@ -53,11 +53,49 @@ export type Phase =
 export const PHASE_ORDER = ['scanning', 'shelf', 'changing', 'closed'] as const
 
 /**
+ * Where the clerk is looking.
+ *
+ * One closed union rather than a boolean per surface: looking at the shelf,
+ * the clock or the notebook all mean the same thing — you are not looking at
+ * the customer — and independent flags would multiply against `Phase` into a
+ * branch space that cannot be covered without exclusions.
+ */
+export type Gaze = 'counter' | 'shelf' | 'clock' | 'notebook'
+
+export const GAZE_ORDER = ['counter', 'shelf', 'clock', 'notebook'] as const satisfies
+  readonly Gaze[]
+
+/**
+ * What looking somewhere costs you.
+ */
+export interface GazeSpec {
+  /**
+   * Whether the customer, their speech and the receipt stay visible.
+   *
+   * False everywhere except the counter: you cannot read the cigarette wall,
+   * the clock or your own notes while also reading the basket in front of you.
+   */
+  readonly canSeeCustomer: boolean
+  /**
+   * Label for the control that turns your head this way.
+   */
+  readonly label: string
+}
+
+export const GAZE: Record<Gaze, GazeSpec> = {
+  counter: { canSeeCustomer: true, label: 'Back to the counter' },
+  shelf: { canSeeCustomer: false, label: 'Turn to the shelf' },
+  clock: { canSeeCustomer: false, label: 'Look at the clock' },
+  notebook: { canSeeCustomer: false, label: 'Check your notes' },
+}
+
+/**
  * What the player did, as a closed union the shift reducer switches over.
  */
 export type ShiftEvent =
   | { readonly kind: 'scan' }
   | { readonly kind: 'pick-slot'; readonly slot: number }
+  | { readonly kind: 'look'; readonly at: Gaze }
   | { readonly kind: 'use-lookup' }
   | { readonly kind: 'give'; readonly denom: number }
   | { readonly kind: 'take-back'; readonly denom: number }
@@ -68,6 +106,7 @@ export type ShiftEvent =
 export const EVENT_KIND_ORDER = [
   'scan',
   'pick-slot',
+  'look',
   'use-lookup',
   'give',
   'take-back',

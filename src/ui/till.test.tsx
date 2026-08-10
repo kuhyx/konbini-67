@@ -46,12 +46,15 @@ describe('Till', () => {
     expect(onTakeBack).toHaveBeenCalledWith(50)
   })
 
-  it('reports the running value and piece count', () => {
-    render(
-      <Till tray={addDenom(EMPTY_PURSE, 500)} enabled onGive={vi.fn()} onTakeBack={vi.fn()} />,
-    )
-    expect(screen.getByText('IN HAND')).toBeInTheDocument()
-    expect(screen.getByText(/1 coin\(s\)/)).toBeInTheDocument()
+  it('never totals up what you are holding', () => {
+    const tray = addDenom(addDenom(EMPTY_PURSE, 500), 100)
+    render(<Till tray={tray} enabled onGive={vi.fn()} onTakeBack={vi.fn()} />)
+    // No running value and no piece count: you count your own handful, the
+    // same way you would standing at a till.
+    expect(screen.queryByText('IN HAND')).not.toBeInTheDocument()
+    expect(screen.queryByText('¥600')).not.toBeInTheDocument()
+    expect(screen.queryByText(/coin\(s\)\/note\(s\)/)).not.toBeInTheDocument()
+    expect(screen.getByText(/nothing here adds it up for you/)).toBeInTheDocument()
   })
 
   it('is inert while disabled', () => {
