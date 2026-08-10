@@ -65,17 +65,19 @@ a finite amount of money you can run out of, beer and tobacco need an ID check
 you have to make the call on, you type the price yourself and can mistype it,
 and items are dragged over the scanner beam across a counter with the
 customer's money loose on it. Nothing totals anything for you, and there is no
-scoreboard. `npm run check` clean at 100% coverage. It is not signed off yet:
-M0's done-condition also requires actually playing three shifts and judging
-whether the pressure is fun or feels like homework, and that cannot be
-automated.
+scoreboard. `npm run check` clean at 100% coverage. **M0 is signed off** — its
+done-condition was always a play-check rather than a gate, and it passed one.
+
+Since then the roadmap has been built too: **stocking shelves and cleaning**
+(M6), **customers who mind being kept waiting** (M1) and **hot food on a
+roller that cooks while you serve** (M3). The hot case is the only part of the
+shop whose state changes when you are not looking at it, and it runs off the
+same tick as the shift clock so a seeded shift still replays exactly.
 
 Age verification (M2) and the finite till that breaks greedy change (M5) were
-pulled forward into that pass and are built. Still to come — queue and patience
-(M1), cooking (M3), payment methods (M4), and regulars, restocking and
-shoplifters (M6). The features most obviously missing — stocking shelves, angry
-customers, hot food and cleaning — are specified as milestones under "The
-roadmap" in `SPEC-physicality.md`.
+pulled forward into the physicality pass and are built. Still to come —
+payment methods (M4), and regulars and shoplifters (the rest of M6). Art is
+still emoji placeholders by choice; the mechanics were proven first.
 
 Currency is JPY on purpose: yen has no sub-unit, so every amount is a plain
 integer and the whole float-rounding bug class is designed out of the scoring

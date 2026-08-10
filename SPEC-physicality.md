@@ -11,8 +11,9 @@
 > then **reverted one of those two corrections on play**: dragging change out
 > to the customer was worse than clicking it, so giving change is clicks
 > again. Scanning stays a genuine mouse drag — see "Round three" below for
-> what survived and what did not. 351 tests, 100% coverage on all four
-> metrics, zero exclusions, zero lint suppressions.
+> what survived and what did not. Then the roadmap itself was built (stocking,
+> cleaning, anger, hot food). **481 tests, 100% coverage on all four metrics,
+> zero exclusions, zero lint suppressions.**
 >
 > **Round two's table below is kept as written, including the rows round three
 > undid.** It is a record of what was built and why, not a description of the
@@ -145,7 +146,16 @@ anything visual, assert the drawn result — and confirm it in a real layout
 engine before calling it fixed. jsdom computes no layout, so it will agree with
 whatever CSS you wrote regardless of what it does.
 
-## The roadmap: what the game is still missing (item 9)
+## The roadmap: what the game was still missing (item 9) — NOW BUILT
+
+> **Status: all four built, 2026-08-10.** Stocking and cleaning (M6), angry
+> customers (M1) and hot food (M3) each landed as their own commit with the
+> gate green between them. 481 tests, 100% coverage on all four metrics, zero
+> exclusions, zero lint suppressions. What follows is the design as specified;
+> the notes below each section record what actually shipped.
+>
+> Emoji placeholders throughout, by explicit choice — the art pass is a
+> separate job now that the mechanics have proven themselves.
 
 Requested verbatim: *"we are missing a lot of features — stocking items on
 shelves, handling angry customers, doing food stuff like hotdogs, pizzas, ice
@@ -212,6 +222,27 @@ between customers a cost, so standing idle stops being free.
   interesting case; a modal that locks you out of the till would be the wrong
   build, and is the specific failure to avoid here.
 
+### What shipped, against what was specified
+
+The order held: M6 first (cheapest, independent), then M1, then M3. Three
+things came out differently from the plan, all recorded because the reasoning
+is reusable:
+
+- **Anger needed no queue.** `customerStartMs` was already in the state for
+  the speed bonus, so impatience reads from it. The spec assumed a queue had
+  to exist first; it did not.
+- **Cleaning became a click, not a drag.** Round three's rule applied cleanly:
+  wiping a counter is one motion with no decision in it. Dragging a cloth
+  would have been friction cosplaying as depth.
+- **Mess feeds mood rather than its own score.** That coupling is what gives
+  cleaning teeth — a customer surrounded by litter is less patient — and it
+  avoided inventing a cleanliness stat nobody asked for.
+
+One real bug came out of the interaction between M6 and M1: a test helper that
+ticked until N messes existed could spin for ever, because past the patience
+limit the customer walks out and `advance` starts a fresh one. Bounded rather
+than given a longer timeout.
+
 ### Order, and the one hard dependency
 
 **M1 before M3.** Concurrent cook timers are only interesting if someone is
@@ -219,8 +250,8 @@ waiting, and anger is what makes waiting cost something — building M3 first
 means building a pressure system with nothing to apply pressure to. M6 is
 independent of both and can land whenever; it is the cheapest of the three.
 
-Nothing in this section is committed to until M0 is signed off, which needs a
-play-check, not a build.
+M0 was signed off before any of this was built, on a play-check rather than a
+gate — which is what made it safe to start.
 
 ## The requests, as given
 
