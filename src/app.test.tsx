@@ -7,6 +7,29 @@ import { SHIFT_MS } from './core/shift'
 import { installRaf } from './test/harness'
 
 /**
+ * Turns to the shelf and picks a slot, if this customer wanted cigarettes.
+ *
+ * The shelf is no longer on screen by default — reaching it is a head-turn,
+ * so every test that gets past a cigarette request has to make that turn the
+ * same way a player would.
+ */
+const handleCigarettesIfAsked = async (): Promise<void> => {
+  const turn = screen.queryByRole('button', { name: /Turn to the shelf/i })
+  if (turn === null) {
+    return
+  }
+  await userEvent.click(turn)
+  const slot = screen.queryByLabelText('Slot 3')
+  if (slot !== null && !(slot as HTMLButtonElement).disabled) {
+    await userEvent.click(slot)
+  }
+  const back = screen.queryByRole('button', { name: /Back to the counter/i })
+  if (back !== null) {
+    await userEvent.click(back)
+  }
+}
+
+/**
  * Rings up every item, whatever the basket happens to hold.
  */
 const scanEverything = async (): Promise<void> => {
@@ -36,25 +59,50 @@ describe('App', () => {
     render(<App />)
     expect(screen.queryByText('TOTAL')).not.toBeInTheDocument()
     await scanEverything()
-    // Either the shelf or the till is now up; both mean scanning finished.
-    // Which one depends on whether this customer wanted cigarettes, so assert
-    // that one of the two appeared rather than branching on it.
-    const onShelf = screen.queryByRole('heading', { name: /Cigarettes/i })
-    const onTill = screen.queryByText('TOTAL')
-    // Named so a failure says which surface was missing, not just "length 0".
-    expect({ shelf: onShelf !== null, till: onTill !== null }).not.toStrictEqual({
-      shelf: false,
-      till: false,
-    })
+    // The shelf no longer appears by itself, so a cigarette customer leaves
+    // you facing the counter with the request outstanding — deal with it the
+    // way a player has to, then the total is up either way.
+    await handleCigarettesIfAsked()
+    expect(screen.getByText('TOTAL')).toBeInTheDocument()
+  })
+
+  it('keeps the cigarette shelf out of sight until you turn to it', async () => {
+    installRaf()
+    render(<App />)
+    // Not on screen at the counter, however far into the sale you are.
+    expect(screen.queryByRole('heading', { name: /Cigarettes/i })).not.toBeInTheDocument()
+    await scanEverything()
+    expect(screen.queryByRole('heading', { name: /Cigarettes/i })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /Turn to the shelf/i }))
+    expect(screen.getByRole('heading', { name: /Cigarettes/i })).toBeInTheDocument()
+    // And now the customer and their request are behind you.
+    expect(screen.getByText(/You’re looking away/)).toBeInTheDocument()
+    expect(screen.queryByText('TOTAL')).not.toBeInTheDocument()
+  })
+
+  it('keeps notes across shifts, and hides the customer while you read them', async () => {
+    installRaf()
+    const storage = localStorage
+    storage.clear()
+    const { unmount } = render(<App storage={storage} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /Check your notes/i }))
+    expect(screen.getByText(/You’re looking away/)).toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText('Note for slot 5'), 'Hi-Lite')
+    unmount()
+
+    // A fresh mount is the next shift: the scrap of paper is still taped up.
+    render(<App storage={storage} />)
+    await userEvent.click(screen.getByRole('button', { name: /Check your notes/i }))
+    expect(screen.getByLabelText('Note for slot 5')).toHaveValue('Hi-Lite')
   })
 
   it('lets you count out change once the basket is rung up', async () => {
     installRaf()
     render(<App />)
     await scanEverything()
-    if (screen.queryByRole('heading', { name: /Cigarettes/i }) !== null) {
-      await userEvent.click(screen.getByLabelText('Slot 3'))
-    }
+    await handleCigarettesIfAsked()
     await userEvent.click(screen.getByLabelText('Give ¥100'))
     expect(screen.getByText('×1')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hand over change' })).toBeEnabled()
@@ -64,9 +112,7 @@ describe('App', () => {
     installRaf()
     render(<App />)
     await scanEverything()
-    if (screen.queryByRole('heading', { name: /Cigarettes/i }) !== null) {
-      await userEvent.click(screen.getByLabelText('Slot 3'))
-    }
+    await handleCigarettesIfAsked()
     await userEvent.click(screen.getByRole('button', { name: 'Hand over change' }))
     // Wrong change is still a completed sale; the queue moves on either way,
     // and the message becomes feedback on what just happened.
@@ -147,9 +193,7 @@ describe('App', () => {
     installRaf()
     render(<App />)
     await scanEverything()
-    if (screen.queryByRole('heading', { name: /Cigarettes/i }) !== null) {
-      await userEvent.click(screen.getByLabelText('Slot 3'))
-    }
+    await handleCigarettesIfAsked()
     await userEvent.click(screen.getByLabelText('Give ¥100'))
     expect(screen.getByLabelText('Give ¥100')).toHaveClass('has')
 

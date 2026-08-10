@@ -3,11 +3,14 @@ import { STORE_NAME } from './core/catalog'
 import { type Clock, realClock } from './core/clock'
 import type { Denom } from './core/money'
 import { createShift, reduce, SHIFT_MS } from './core/shift'
-import { GAZE, type Gaze } from './core/types'
+import { type Notebook as NotebookState, writeNote } from './core/notebook'
+import { loadNotebook, saveNotebook } from './core/notebook-storage'
+import { GAZE, GAZE_ORDER, type Gaze } from './core/types'
 import { shiftEndsAt } from './core/wallclock'
 import { Counter } from './ui/counter'
 import { Shelf } from './ui/shelf'
 import { ShiftOver } from './ui/shift-over'
+import { Notebook } from './ui/notebook'
 import { Till } from './ui/till'
 import { WallClock } from './ui/wall-clock'
 import { useGameLoop } from './ui/use-game-loop'
@@ -22,12 +25,34 @@ export interface AppProperties {
    * Injectable so tests can run a shift to its end without real time.
    */
   readonly clock?: Clock
+  /**
+   * Where the notebook is kept. Injectable so a test can supply its own
+   * rather than reaching for the real `localStorage`.
+   */
+  readonly storage?: Storage
 }
 
-export const App = ({ clock = realClock }: AppProperties = {}): JSX.Element => {
+export const App = ({
+  clock = realClock,
+  storage = localStorage,
+}: AppProperties = {}): JSX.Element => {
   const [seed, setSeed] = useState(FIRST_SEED)
   const [shiftNo, setShiftNo] = useState(1)
   const [state, dispatch] = useReducer(reduce, createShift(FIRST_SEED, 1))
+  // Notes live outside ShiftState on purpose: they change what the player
+  // knows, never what the shift does, so a seeded replay must not see them.
+  const [notebook, setNotebook] = useState<NotebookState>(() => loadNotebook(storage))
+
+  const writeSlotNote = useCallback(
+    (slot: number, note: string) => {
+      setNotebook((current) => {
+        const next = writeNote(current, slot, note)
+        saveNotebook(storage, next)
+        return next
+      })
+    },
+    [storage],
+  )
 
   const onFrame = useCallback(
     (deltaMs: number) => {
@@ -110,16 +135,15 @@ export const App = ({ clock = realClock }: AppProperties = {}): JSX.Element => {
           </div>
         )}
 
-        {isShelf ? (
-          <Shelf
-            mode={state.shelf.mode}
-            enabled
-            lookupOpen={state.gaze === 'notebook'}
-            onPick={pick}
-          />
-        ) : (
+        {state.gaze === 'shelf' ? (
+          <Shelf mode={state.shelf.mode} enabled={isShelf} lookupOpen={false} onPick={pick} />
+        ) : undefined}
+        {state.gaze === 'notebook' ? (
+          <Notebook notebook={notebook} onWrite={writeSlotNote} />
+        ) : undefined}
+        {state.gaze === 'counter' || state.gaze === 'clock' ? (
           <Till tray={state.tray} enabled={isChanging} onGive={give} onTakeBack={takeBack} />
-        )}
+        ) : undefined}
       </div>
 
       <div className="actions">
@@ -155,15 +179,20 @@ export const App = ({ clock = realClock }: AppProperties = {}): JSX.Element => {
             Check the chart (−{state.shelf.lookupPenalty})
           </button>
         ) : undefined}
-        <button
-          type="button"
-          className="ghost"
-          onClick={() => {
-            look(isLookingUp ? 'counter' : 'clock')
-          }}
-        >
-          {isLookingUp ? GAZE.counter.label : GAZE.clock.label}
-        </button>
+        {GAZE_ORDER.map((at) =>
+          at === state.gaze ? undefined : (
+            <button
+              key={at}
+              type="button"
+              className="ghost"
+              onClick={() => {
+                look(at)
+              }}
+            >
+              {GAZE[at].label}
+            </button>
+          ),
+        )}
       </div>
     </div>
   )

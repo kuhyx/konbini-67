@@ -11,4 +11,8 @@ import { afterEach, vi } from 'vitest'
 // `src/test/harness.test.ts` guards this.
 afterEach(() => {
   vi.unstubAllGlobals()
+  // The notebook persists to localStorage, so notes written by one test would
+  // otherwise be sitting there for the next one — the same leak class as the
+  // rAF stub above.
+  localStorage.clear()
 })
