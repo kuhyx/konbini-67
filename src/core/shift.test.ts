@@ -1357,6 +1357,24 @@ describe('hot food', () => {
     expect(sold.takings).toBe(HOT_ITEMS.coffee.price)
   })
 
+  it.each(['coffee', 'hotdog'] as const)('puts the actual price of a %s in the drawer', (what) => {
+    // Money is conserved: the drawer holds the opening float plus everything
+    // taken in, and nothing else. A flat coin here instead of the real price
+    // opened a gap the tally could never explain — green tests missed it
+    // because they only ever checked `takings`, which was right all along.
+    const state = cooking(what)
+    const portion = state.hotCase[0]
+    if (portion === undefined) {
+      throw new Error('expected a portion')
+    }
+    const ready = reduce({ ...state, frozenUntilMs: 0 }, {
+      kind: 'tick',
+      deltaMs: HOT_ITEMS[what].cookMs,
+    })
+    const sold = reduce({ ...ready, frozenUntilMs: 0 }, { kind: 'take-out', id: portion.id })
+    expect(purseValue(sold.drawer)).toBe(purseValue(sold.openingFloat) + sold.takings)
+  })
+
   it('bins one that was left too long', () => {
     const state = cooking()
     const portion = state.hotCase[0]

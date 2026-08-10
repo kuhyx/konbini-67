@@ -10,13 +10,29 @@
  * over — a konbini with a broken speaker still sells onigiri.
  */
 
-export type Cue = 'beep' | 'reject' | 'coin' | 'drawer'
+export type Cue =
+  | 'beep'
+  | 'reject'
+  | 'coin'
+  | 'drawer'
+  | 'cook'
+  | 'ready'
+  | 'burn'
+  | 'stock'
+  | 'clean'
+  | 'huff'
 
 const FILES: Record<Cue, string> = {
   beep: 'sfx/beep.ogg',
   reject: 'sfx/reject.ogg',
   coin: 'sfx/coin.ogg',
   drawer: 'sfx/drawer.ogg',
+  cook: 'sfx/cook.ogg',
+  ready: 'sfx/ready.ogg',
+  burn: 'sfx/burn.ogg',
+  stock: 'sfx/stock.ogg',
+  clean: 'sfx/clean.ogg',
+  huff: 'sfx/huff.ogg',
 }
 
 /**
@@ -24,12 +40,23 @@ const FILES: Record<Cue, string> = {
  *
  * The scanner beep fires most often, so it sits lowest — a real one is a
  * background tick, not an event.
+ *
+ * `ready` and `huff` are the two that carry information you cannot get by
+ * looking at the counter — food behind you is done, someone in the queue has
+ * had enough — so they sit above the noises that merely confirm what you just
+ * did with your hands.
  */
 const GAIN: Record<Cue, number> = {
   beep: 0.25,
   reject: 0.3,
   coin: 0.35,
   drawer: 0.3,
+  cook: 0.3,
+  ready: 0.4,
+  burn: 0.35,
+  stock: 0.3,
+  clean: 0.25,
+  huff: 0.4,
 }
 
 export interface Speaker {
@@ -43,6 +70,38 @@ export interface Audible {
   readonly scanned: number
   readonly message: string
   readonly trayPieces: number
+  /**
+   * Portions on the roller. Up means one just went on.
+   */
+  readonly cooking: number
+  /**
+   * Portions that have finished cooking and are sitting in the case.
+   *
+   * The one cue the player genuinely needs: the hot case is behind you, so
+   * without a noise the only way to catch a portion coming good is to keep
+   * turning round, which is exactly the fidgeting the mechanic is meant to
+   * replace with a thing you can hear while serving.
+   */
+  readonly ready: number
+  /**
+   * Portions thrown away, from the tally. Monotonic, so a rise is an event.
+   */
+  readonly binned: number
+  /**
+   * Trips out back, from the tally.
+   */
+  readonly restocked: number
+  /**
+   * Messes wiped, from the tally.
+   */
+  readonly cleaned: number
+  /**
+   * Whether the customer at the counter has lost patience.
+   *
+   * A boolean rather than a count: the huff is the moment they turn, and it
+   * should sound once when they do, not on every tick they stay cross.
+   */
+  readonly impatient: boolean
 }
 
 /**
@@ -67,6 +126,27 @@ export const cuesFor = (before: Audible, after: Audible): readonly Cue[] => {
     if (after.message.includes('put their money down') || after.message.includes('pay it')) {
       cues.push('drawer')
     }
+  }
+  if (after.cooking > before.cooking) {
+    cues.push('cook')
+  }
+  if (after.ready > before.ready) {
+    cues.push('ready')
+  }
+  if (after.binned > before.binned) {
+    cues.push('burn')
+  }
+  if (after.restocked > before.restocked) {
+    cues.push('stock')
+  }
+  if (after.cleaned > before.cleaned) {
+    cues.push('clean')
+  }
+  // Only on the way in: a customer who stays annoyed is already visible, and
+  // repeating the noise every frame would make the shop unbearable rather
+  // than tense.
+  if (after.impatient && !before.impatient) {
+    cues.push('huff')
   }
   return cues
 }

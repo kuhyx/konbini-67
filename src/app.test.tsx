@@ -410,6 +410,29 @@ describe('stock and the stockroom', () => {
     expect(screen.getByText(/Putting out melonpan/)).toBeInTheDocument()
   })
 
+  it('rattles a crate onto the shelf where you can hear it', async () => {
+    // The cue itself is unit-tested against `cuesFor`; what this pins down is
+    // the wiring in between — that the app hands the restock tally to the
+    // speaker at all. Every other new cue was confirmed by ear in a browser;
+    // this one needs a sold-down shelf to reach, so it is held here instead.
+    installRaf()
+    const played: string[] = []
+    render(
+      <App
+        stock={{ ...FULL_SHELF, melonpan: 0 }}
+        speaker={{
+          play: (cue) => {
+            played.push(cue)
+          },
+        }}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /Go out back/i }))
+    await userEvent.click(screen.getByText(ITEMS.melonpan.label))
+    expect(played).toContain('stock')
+  })
+
   it('disables every crate when the shop is fully stocked', async () => {
     installRaf()
     render(<App />)

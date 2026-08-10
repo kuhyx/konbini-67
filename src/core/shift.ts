@@ -24,6 +24,7 @@ import {
   DENOMS,
   EMPTY_PURSE,
   formatYen,
+  greedyChange,
   MANAGER_FLOAT,
   mergePurses,
   OPENING_FLOAT,
@@ -670,9 +671,11 @@ const onTakeOut = (state: ShiftState, id: number): ShiftState => {
     ...state,
     hotCase: remove(state.hotCase, id),
     frozenUntilMs: state.elapsedMs + HANDLE_MS,
-    // A sold portion is money in the drawer; a ruined one is money the shop
-    // spent on nothing, which is why it shows up in the takings either way.
-    drawer: wasRuined ? state.drawer : addDenom(state.drawer, 100),
+    // Money is conserved: what the drawer holds must always be the opening
+    // float plus everything taken in. Adding a flat coin here instead of the
+    // actual price opened a silent gap — the same shape of discrepancy a
+    // misquote produces, but earned by nothing the player did.
+    drawer: wasRuined ? state.drawer : mergePurses(state.drawer, greedyChange(spec.price)),
     takings: wasRuined ? state.takings : state.takings + spec.price,
     tally: {
       ...state.tally,

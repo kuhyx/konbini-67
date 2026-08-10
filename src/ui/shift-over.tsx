@@ -42,6 +42,30 @@ export const ShiftOver = ({ tally, onRestart }: ShiftOverProperties): JSX.Elemen
         <span>{tally.misquoted}</span>
       </li>
       <li>
+        <span>Walked out</span>
+        <span>{tally.walkedOut}</span>
+      </li>
+      <li>
+        <span>Sales lost to empty shelves</span>
+        <span>{tally.lostSales}</span>
+      </li>
+      <li>
+        <span>Restocked</span>
+        <span>{tally.restocked}</span>
+      </li>
+      <li>
+        <span>Cleaned up</span>
+        <span>{tally.cleaned}</span>
+      </li>
+      <li>
+        <span>Hot food sold</span>
+        <span>{tally.hotSold}</span>
+      </li>
+      <li>
+        <span>Thrown away</span>
+        <span>{tally.binned}</span>
+      </li>
+      <li>
         <span>Drawer off by</span>
         <span>{formatYen(tally.drawerDelta)}</span>
       </li>

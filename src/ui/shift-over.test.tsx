@@ -4,6 +4,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { EMPTY_TALLY } from '../core/types'
 import { ShiftOver } from './shift-over'
 
+/**
+ * The whole text of the summary row carrying `label`, so a row is asserted as
+ * a label-value pair rather than as a bare number that any field could own.
+ */
+const rowFor = (label: string): string => screen.getByText(label).parentElement?.textContent ?? ''
+
 describe('ShiftOver', () => {
   it('grades an unworked shift as D', () => {
     render(<ShiftOver tally={EMPTY_TALLY} onRestart={vi.fn()} />)
@@ -42,6 +48,34 @@ describe('ShiftOver', () => {
     render(<ShiftOver tally={{ ...EMPTY_TALLY, served: 5, misquoted: 2 }} onRestart={vi.fn()} />)
     expect(screen.getByText('Wrong price said')).toBeInTheDocument()
     expect(screen.getByText('2')).toBeInTheDocument()
+  })
+
+  it('shows the housekeeping the shift was actually about', () => {
+    // These six were tallied but never displayed, which made the features
+    // that produce them invisible: a walkout you are not told about teaches
+    // nothing. Each row is checked against its own label rather than by
+    // looking up a bare number, so two fields cannot quietly swap places.
+    render(
+      <ShiftOver
+        tally={{
+          ...EMPTY_TALLY,
+          served: 9,
+          walkedOut: 2,
+          lostSales: 3,
+          restocked: 4,
+          cleaned: 5,
+          hotSold: 6,
+          binned: 7,
+        }}
+        onRestart={vi.fn()}
+      />,
+    )
+    expect(rowFor('Walked out')).toBe('Walked out2')
+    expect(rowFor('Sales lost to empty shelves')).toBe('Sales lost to empty shelves3')
+    expect(rowFor('Restocked')).toBe('Restocked4')
+    expect(rowFor('Cleaned up')).toBe('Cleaned up5')
+    expect(rowFor('Hot food sold')).toBe('Hot food sold6')
+    expect(rowFor('Thrown away')).toBe('Thrown away7')
   })
 
   it('starts another shift on request', async () => {

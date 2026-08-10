@@ -7,7 +7,7 @@ import { canMakeChange, type Denom, purseCount, type Purse } from './core/money'
 import { changeOwed, createShift, missingFromBasket, moodOf, reduce } from './core/shift'
 import { canApologise as canSaySorry } from './core/patience'
 import type { Stock } from './core/stock'
-import type { HotItem } from './core/hotfood'
+import { type HotItem, stageOf } from './core/hotfood'
 import { GAZE, type Gaze, type Resolution } from './core/types'
 import { Counter } from './ui/counter'
 import { CounterTop } from './ui/counter-top'
@@ -66,10 +66,18 @@ export const App = ({
   // its own is never near a real `Audio` element.
   const sound = useMemo(() => speaker ?? createSpeaker(), [speaker])
   // Every noise the shop makes, derived from the state the reducer produced.
+  // The hot-case counts are derived here rather than stored, for the same
+  // reason the stages are: `elapsedMs` is the only clock in the game.
   useSoundCues(sound, {
     scanned: state.scanned,
     message: state.message,
     trayPieces: purseCount(state.tray),
+    cooking: state.hotCase.length,
+    ready: state.hotCase.filter((portion) => stageOf(portion, state.elapsedMs) === 'ready').length,
+    binned: state.tally.binned,
+    restocked: state.tally.restocked,
+    cleaned: state.tally.cleaned,
+    impatient: moodOf(state) === 'annoyed' || moodOf(state) === 'leaving',
   })
 
   const onFrame = useCallback(
