@@ -2,10 +2,18 @@ import { useCallback, useReducer, useState, type JSX } from 'react'
 import { STORE_NAME } from './core/catalog'
 import { type Clock, realClock } from './core/clock'
 import type { Denom } from './core/money'
-import { createShift, reduce, SHIFT_MS } from './core/shift'
+import { canMakeChange, type Purse } from './core/money'
+import { changeOwed, createShift, reduce, SHIFT_MS } from './core/shift'
 import { type Notebook as NotebookState, writeNote } from './core/notebook'
 import { loadNotebook, saveNotebook } from './core/notebook-storage'
-import { GAZE, GAZE_ORDER, type Gaze } from './core/types'
+import {
+  GAZE,
+  GAZE_ORDER,
+  type Gaze,
+  type Resolution,
+  RESOLUTION_ORDER,
+  RESOLUTIONS,
+} from './core/types'
 import { shiftEndsAt } from './core/wallclock'
 import { Counter } from './ui/counter'
 import { Shelf } from './ui/shelf'
@@ -30,15 +38,21 @@ export interface AppProperties {
    * rather than reaching for the real `localStorage`.
    */
   readonly storage?: Storage
+  /**
+   * Opening drawer. Injectable so a test can start from a till that cannot
+   * make change without playing twenty customers to get there.
+   */
+  readonly float?: Purse
 }
 
 export const App = ({
   clock = realClock,
   storage = localStorage,
+  float,
 }: AppProperties = {}): JSX.Element => {
   const [seed, setSeed] = useState(FIRST_SEED)
   const [shiftNo, setShiftNo] = useState(1)
-  const [state, dispatch] = useReducer(reduce, createShift(FIRST_SEED, 1))
+  const [state, dispatch] = useReducer(reduce, createShift(FIRST_SEED, 1, float))
   // Notes live outside ShiftState on purpose: they change what the player
   // knows, never what the shift does, so a seeded replay must not see them.
   const [notebook, setNotebook] = useState<NotebookState>(() => loadNotebook(storage))
@@ -81,6 +95,9 @@ export const App = ({
   const look = useCallback((at: Gaze) => {
     dispatch({ kind: 'look', at })
   }, [])
+  const resolve = useCallback((how: Resolution) => {
+    dispatch({ kind: 'resolve', how })
+  }, [])
 
   if (state.phase === 'closed') {
     return (
@@ -93,6 +110,9 @@ export const App = ({
   const isChanging = state.phase === 'changing'
   const isShelf = state.phase === 'shelf'
   const isLookingUp = state.gaze === 'clock'
+  // Only surfaced when the till genuinely cannot pay out: a clerk does not
+  // start negotiating over change they can simply hand over.
+  const isStuck = isChanging && !canMakeChange(changeOwed(state), state.drawer)
   const canSeeCustomer = GAZE[state.gaze].canSeeCustomer
 
   return (
@@ -121,6 +141,11 @@ export const App = ({
 
       <div className="message">
         <span>{state.message}</span>
+        {isStuck ? (
+          <span className="stuck">
+            The till cannot make this change. You will have to say something.
+          </span>
+        ) : undefined}
       </div>
 
       <div className="grid">
@@ -185,6 +210,20 @@ export const App = ({
             Check the chart (−{state.shelf.lookupPenalty})
           </button>
         ) : undefined}
+        {isStuck
+          ? RESOLUTION_ORDER.map((how) => (
+              <button
+                key={how}
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  resolve(how)
+                }}
+              >
+                {RESOLUTIONS[how].label}
+              </button>
+            ))
+          : undefined}
         {GAZE_ORDER.map((at) =>
           at === state.gaze ? undefined : (
             <button

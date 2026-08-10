@@ -18,12 +18,13 @@ import {
   DENOMS,
   EMPTY_PURSE,
   formatYen,
+  MANAGER_FLOAT,
   mergePurses,
   OPENING_FLOAT,
   type Purse,
   removeDenom,
 } from './money'
-import { createRng, type Rng } from './rng'
+import { createRng, nextFloat, type Rng } from './rng'
 import { type ChangeGrade, gradeChange, parMs, speedPoints } from './score'
 import { type ShelfSpec, shelfSpecForShift } from './shelf'
 import {
@@ -32,6 +33,8 @@ import {
   GAZE,
   type Gaze,
   type Phase,
+  type Resolution,
+  RESOLUTIONS,
   type ShiftEvent,
   type ShiftTally,
 } from './types'
@@ -107,8 +110,12 @@ export const lineCount = (customer: Customer): number => {
 
 /**
  * Starts a shift. `shift` is 1-based and drives the shelf escalation.
+ *
+ * `float` is the drawer it opens with — injectable so a test can start from a
+ * till that cannot make change, which is otherwise reachable only by playing
+ * a long way into a shift.
  */
-export const createShift = (seed: number, shift = 1): ShiftState => {
+export const createShift = (seed: number, shift = 1, float: Purse = OPENING_FLOAT): ShiftState => {
   const rng = createRng(seed)
   const shelf = shelfSpecForShift(shift)
   return {
@@ -121,8 +128,8 @@ export const createShift = (seed: number, shift = 1): ShiftState => {
     shelfDone: false,
     gaze: 'counter',
     tray: EMPTY_PURSE,
-    drawer: OPENING_FLOAT,
-    drawerAtTender: OPENING_FLOAT,
+    drawer: float,
+    drawerAtTender: float,
     elapsedMs: 0,
     customerStartMs: 0,
     frozenUntilMs: 0,
@@ -321,6 +328,81 @@ const confirmMessage = (grade: ChangeGrade): string => {
   return 'Exact. Next.'
 }
 
+/**
+ * Yen the drawer is short of making this customer's change exactly.
+ *
+ * Zero when it can be made. Only ever a few yen in practice — it is the tail
+ * of the amount that ran out of small coins.
+ */
+const shortfall = (state: ShiftState): number => {
+  // The most the drawer can actually pay out toward what is owed. Greedy
+  // gives exactly that: it takes the largest pieces that fit at every step,
+  // so whatever is left over is the part no combination could cover — and it
+  // naturally comes out at zero when the change can be made in full, so no
+  // separate "can it?" guard is needed.
+  let left = changeOwed(state)
+  for (const denom of DENOMS) {
+    left -= Math.min(Math.floor(left / denom), state.drawer[denom]) * denom
+  }
+  return left
+}
+
+/**
+ * Talks your way out of a till that cannot make the change.
+ *
+ * Every option costs shift time, and the ones the customer can refuse draw
+ * their answer from a copy of the generator — never a fresh source — so a
+ * seeded shift still replays identically.
+ */
+const onResolve = (state: ShiftState, how: Resolution): ShiftState => {
+  if (state.phase !== 'changing' || isFrozen(state)) {
+    return state
+  }
+  const spec = RESOLUTIONS[how]
+  const rng: Rng = { s: state.rng.s }
+  const isAccepted = !spec.canRefuse || nextFloat(rng) < spec.acceptance
+  const elapsedMs = state.elapsedMs + spec.costMs
+  if (!isAccepted) {
+    return {
+      ...state,
+      rng,
+      elapsedMs,
+      message: `${spec.line} They shake their head.`,
+    }
+  }
+  if (how === 'ask-manager') {
+    // A fresh roll of coins: back to a full float's worth of small change.
+    return {
+      ...state,
+      rng,
+      elapsedMs,
+      drawer: mergePurses(state.drawer, MANAGER_FLOAT),
+      message: `${spec.line} That is better.`,
+    }
+  }
+  if (how === 'owe-the-coin') {
+    // Settled short by the gap, with their blessing. The books will still
+    // notice, which is the honest outcome — this is a known discrepancy
+    // rather than a mistake you have to discover.
+    const gap = shortfall(state)
+    const tally: ShiftTally = {
+      ...state.tally,
+      served: state.tally.served + 1,
+      drawerDelta: state.tally.drawerDelta + gap,
+    }
+    const drawer = mergePurses(state.drawer, state.customer.tender)
+    return advance(
+      { ...state, rng, elapsedMs, drawer },
+      tally,
+      `${spec.line} They wave it off. ${formatYen(gap)} short in the books.`,
+    )
+  }
+  // Card, or smaller money: the sale closes cleanly with no change at all.
+  const tally: ShiftTally = { ...state.tally, served: state.tally.served + 1 }
+  const drawer = how === 'offer-card' ? state.drawer : mergePurses(state.drawer, state.customer.tender)
+  return advance({ ...state, rng, elapsedMs, drawer }, tally, `${spec.line} Sorted.`)
+}
+
 const onConfirm = (state: ShiftState): ShiftState => {
   if (state.phase !== 'changing' || !canTender(state)) {
     return state
@@ -379,6 +461,9 @@ export const reduce = (state: ShiftState, event: ShiftEvent): ShiftState => {
     }
     case 'confirm': {
       return onConfirm(state)
+    }
+    case 'resolve': {
+      return onResolve(state, event.how)
     }
   }
 }

@@ -60,6 +60,24 @@ export const OPENING_FLOAT: Purse = {
 }
 
 /**
+ * What the manager hands over when you go and ask for change.
+ *
+ * Small denominations only: the problem is never a shortage of notes, it is
+ * running out of the coins that make up the tail of an amount.
+ */
+export const MANAGER_FLOAT: Purse = {
+  10_000: 0,
+  5000: 0,
+  1000: 0,
+  500: 10,
+  100: 20,
+  50: 10,
+  10: 30,
+  5: 10,
+  1: 40,
+}
+
+/**
  * Total yen value of a purse.
  */
 export const purseValue = (purse: Purse): number => {

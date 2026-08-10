@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { App } from './app'
 import { createManualClock } from './core/clock'
 import { SHIFT_MS } from './core/shift'
+import { EMPTY_PURSE, type Purse } from './core/money'
 import { installRaf } from './test/harness'
 
 /**
@@ -161,6 +162,37 @@ describe('App', () => {
     await userEvent.click(screen.getByRole('button', { name: /Back to the counter/i }))
     expect(screen.queryByText('22:15')).not.toBeInTheDocument()
     expect(screen.queryByText(/You’re looking away/)).not.toBeInTheDocument()
+  })
+
+  it('offers a way out when the till cannot make the change', async () => {
+    installRaf()
+    // A drawer of nothing but big notes: no combination makes the change.
+    const bigNotesOnly: Purse = { ...EMPTY_PURSE, 10_000: 2, 5000: 2, 1000: 2 }
+    render(<App float={bigNotesOnly} />)
+
+    // Nothing on offer while you are still ringing up.
+    expect(screen.queryByRole('button', { name: /Anything smaller/i })).not.toBeInTheDocument()
+
+    await scanEverything()
+    await handleCigarettesIfAsked()
+
+    expect(screen.getByText(/till cannot make this change/i)).toBeInTheDocument()
+    for (const label of [/Anything smaller/i, /Suggest card/i, /Owe them/i, /Ask the manager/i]) {
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
+    }
+  })
+
+  it('refills the drawer when you go and ask the manager', async () => {
+    installRaf()
+    const bigNotesOnly: Purse = { ...EMPTY_PURSE, 10_000: 2, 5000: 2, 1000: 2 }
+    render(<App float={bigNotesOnly} />)
+    await scanEverything()
+    await handleCigarettesIfAsked()
+
+    await userEvent.click(screen.getByRole('button', { name: /Ask the manager/i }))
+    // Small change is back, so the warning clears and the sale can proceed.
+    expect(screen.queryByText(/till cannot make this change/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/That is better/)).toBeInTheDocument()
   })
 
   it('shows the summary when the shift ends, and starts a new one', async () => {
