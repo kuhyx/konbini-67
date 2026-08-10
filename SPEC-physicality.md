@@ -183,6 +183,27 @@ on this list.
 > a property test over 500 seeded (target, till) pairs asserts the DP result is
 > ≤ greedy in coin count and never exceeds available counts.
 
+**Measured correction to the plan's premise.** The plan says greedy "breaks"
+once counts go finite. For the canonical JPY set it does not. An exhaustive
+enumeration over 340,995 solvable (target, till) pairs found **zero** cases
+where bounded greedy needed more pieces than the DP, or failed where the DP
+succeeded. The reason is that JPY is a *divisible chain* — 5|10, 10|50, 50|100,
+100|500, 500|1000, 1000|5000, 5000|10000 — and for divisible systems the
+exchange argument keeps greedy both optimal and complete under bounds.
+
+The harness is not blind: a non-canonical control set (1,3,4) produced 11,520
+counterexamples, and adding the real **¥2000 note** — which 1000 divides but
+which does not divide 5000 — produced 720. So greedy's safety rests on a
+precondition a plausible future change would silently break.
+
+Resolution, which keeps the plan's bar met literally:
+- **Bounded greedy ships** as `boundedChange`, and its piece count is the
+  bounded optimum that replaces `optimalCount` inside `gradeChange`.
+- **The DP lives in the test suite as an oracle**, running exactly the
+  500-pair property test the plan specifies. It is the permanent guard on the
+  divisibility precondition, and it is why adding ¥2000 later would fail loudly
+  rather than silently mis-scoring every transaction.
+
 Two knock-on changes this forces:
 - `gradeChange(given, owed)` becomes `gradeChange(given, owed, drawer)`, and
   must return an *infeasible* case (no exact change possible) that routes into
@@ -206,10 +227,26 @@ Two knock-on changes this forces:
   - **Open [DRAFT]:** whether the customer *accepts* the odd-coin offer or the
     card suggestion is seeded per customer (some are agreeable, some are not),
     rather than always working. I think that variability is the point.
-- **Fork 3b — starting float [DRAFT]:** a fixed opening drawer per shift
-  (say ¥8,000 in mixed small denominations), same every shift so the difficulty
-  is legible, and it refills only from what customers hand you. A real till
-  starts from a counted float, so this one already matches reality.
+- **3b — CONFIRMED after measuring the drift.** Before building this I
+  instrumented 20 seeded customers against a plausible float. The drawer is a
+  **one-way ratchet**: customers pay with big notes, change only ever moves
+  value downward, so ¥5000 went 1 → +21 while ¥1000 hit −55, ¥100 −60, ¥10 −35
+  and ¥1 −50. ¥1000 ran out at customer **2**. No fixed float survives a shift,
+  because the problem is the input, not the starting amount.
+
+  kuhy's resolution — fix the input, and be realistic about the rest:
+
+  - **Customers vary in how they pay.** Some exact, some near-exact, some
+    hunting out coins to round the change, some one big note, some a scatter of
+    small notes and coins. This is what real konbini customers do and it is
+    what stops the ratchet at source.
+  - **A generous opening float**, since a real till starts from a properly
+    counted one.
+  - **Asking the manager for change is rare** — realistically rare, as it is on
+    a real shift. It is the release valve, not the rhythm.
+
+  Note this makes the payment-style table part of item 3, not decoration: the
+  drawer's survival depends on it.
 
 ### 4. Scattered money + no readouts
 

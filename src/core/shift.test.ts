@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CIGARETTES } from './catalog'
 import { DENOMS, EMPTY_PURSE, greedyChange, purseValue } from './money'
 import { changeOwed, createShift, lineCount, reduce, SHIFT_MS, type ShiftState } from './shift'
+import { tenderValue } from './customer'
 import { EVENT_KIND_ORDER, GAZE, GAZE_ORDER, type ShiftEvent } from './types'
 
 /**
@@ -424,15 +425,64 @@ describe('counting out change', () => {
   it('flags sloppy-but-correct change', () => {
     let state = changing()
     const owed = changeOwed(state)
-    // Pay entirely in 1-yen coins: correct money, far too many coins.
-    for (let n = 0; n < owed; n += 1) {
-      state = reduce(state, { kind: 'give', denom: 1 })
+    // Correct money, needlessly many pieces: pay the ¥100s in ¥10 coins.
+    const hundreds = Math.floor(owed / 100)
+    for (let n = 0; n < hundreds * 10; n += 1) {
+      state = reduce(state, { kind: 'give', denom: 10 })
+    }
+    let left = owed - hundreds * 100
+    for (const denom of [50, 10, 5, 1] as const) {
+      while (left >= denom) {
+        state = reduce(state, { kind: 'give', denom })
+        left -= denom
+      }
     }
     expect(purseValue(state.tray)).toBe(owed)
     const after = reduce(state, { kind: 'confirm' })
     expect(after.tally.exactChange).toBe(1)
     expect(after.tally.sloppyChange).toBe(1)
     expect(after.message).toContain('too many')
+  })
+
+  it('will not let you hand over a coin the drawer does not have', () => {
+    // The whole point of a finite till: you work with what is in it.
+    let state = changing()
+    const ones = state.drawer[1]
+    for (let n = 0; n < ones; n += 1) {
+      state = reduce(state, { kind: 'give', denom: 1 })
+    }
+    expect(state.drawer[1]).toBe(0)
+    expect(state.tray[1]).toBe(ones)
+    // One more is refused outright rather than conjuring a coin.
+    const blocked = reduce(state, { kind: 'give', denom: 1 })
+    expect(blocked).toStrictEqual(state)
+  })
+
+  it('conserves money: every piece in the tray came out of the drawer', () => {
+    let state = changing()
+    const before = purseValue(state.drawer)
+    for (const denom of [500, 100, 100, 10, 1] as const) {
+      state = reduce(state, { kind: 'give', denom })
+    }
+    expect(purseValue(state.drawer) + purseValue(state.tray)).toBe(before)
+    // And putting one back is the exact inverse.
+    const returned = reduce(state, { kind: 'take-back', denom: 500 })
+    expect(purseValue(returned.drawer) + purseValue(returned.tray)).toBe(before)
+    expect(returned.drawer[500]).toBe(state.drawer[500] + 1)
+  })
+
+  it('takes the customer cash into the drawer at confirm', () => {
+    const ready = changing()
+    const before = purseValue(ready.drawer)
+    const owed = changeOwed(ready)
+    const after = reduce(payExact(ready), { kind: 'confirm' })
+    // Drawer gained what they paid and lost what was handed back.
+    expect(purseValue(after.drawer)).toBe(before + tenderValue(ready.customer) - owed)
+  })
+
+  it('will not refund a piece that is not in the tray', () => {
+    const state = changing()
+    expect(reduce(state, { kind: 'take-back', denom: 500 })).toStrictEqual(state)
   })
 
   it('penalises wrong change and books the drawer', () => {

@@ -6,7 +6,7 @@
  * Efficiency and speed then reward fluency on top of mere accuracy.
  */
 
-import { optimalCount, purseCount, purseValue, type Purse } from './money'
+import { boundedChange, purseCount, purseValue, type Purse } from './money'
 
 export const SCORE = {
   correctChange: 100,
@@ -48,8 +48,15 @@ export interface ChangeGrade {
 
 /**
  * Grades one attempt at counting out change.
+ *
+ * `drawer` is the till **as it stood when the change became owed**, before the
+ * player started lifting pieces out of it. The efficiency reference has to be
+ * the best that was actually possible from that till: grading against the
+ * unbounded ideal would punish a clerk for a shortage they did not cause, and
+ * grading against the till as it stands *now* would move the target while they
+ * count, letting a clumsy grab flatter itself.
  */
-export const gradeChange = (given: Purse, owed: number): ChangeGrade => {
+export const gradeChange = (given: Purse, owed: number, drawer: Purse): ChangeGrade => {
   const value = purseValue(given)
   const isCorrect = value === owed
   if (!isCorrect) {
@@ -61,7 +68,10 @@ export const gradeChange = (given: Purse, owed: number): ChangeGrade => {
       points: SCORE.wrongChange,
     }
   }
-  const surplusCoins = purseCount(given) - optimalCount(owed)
+  const best = boundedChange(owed, drawer)
+  // Undefined means the till could not have made it at all, in which case
+  // whatever they managed is by definition the best available.
+  const surplusCoins = best === undefined ? 0 : purseCount(given) - purseCount(best)
   return {
     correct: true,
     surplusCoins,

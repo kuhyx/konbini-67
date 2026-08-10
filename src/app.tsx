@@ -142,7 +142,13 @@ export const App = ({
           <Notebook notebook={notebook} onWrite={writeSlotNote} />
         ) : undefined}
         {state.gaze === 'counter' || state.gaze === 'clock' ? (
-          <Till tray={state.tray} enabled={isChanging} onGive={give} onTakeBack={takeBack} />
+          <Till
+            tray={state.tray}
+            drawer={state.drawer}
+            enabled={isChanging}
+            onGive={give}
+            onTakeBack={takeBack}
+          />
         ) : undefined}
       </div>
 

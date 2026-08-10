@@ -3,6 +3,11 @@ import { type Denom, DENOMS, formatYen, type Purse } from '../core/money'
 
 export interface TillProperties {
   readonly tray: Purse
+  /**
+   * What is left in the drawer. A denomination you are out of cannot be
+   * handed over — you work with what the till actually holds.
+   */
+  readonly drawer: Purse
   readonly enabled: boolean
   readonly onGive: (denom: Denom) => void
   readonly onTakeBack: (denom: Denom) => void
@@ -16,25 +21,35 @@ export interface TillProperties {
  * field cannot: typing "350" says nothing about whether you would have handed
  * over 3x100+1x50 or 35x10.
  */
-export const Till = ({ tray, enabled, onGive, onTakeBack }: TillProperties): JSX.Element => (
+export const Till = ({
+  tray,
+  drawer,
+  enabled,
+  onGive,
+  onTakeBack,
+}: TillProperties): JSX.Element => (
   <div className="panel">
     <h2>Till — click to count out</h2>
     <div className="tray">
       {DENOMS.map((denom) => {
         const held = tray[denom]
+        const left = drawer[denom]
         return (
           <button
             key={denom}
             type="button"
             className={held > 0 ? 'denom has' : 'denom'}
-            disabled={!enabled}
-            aria-label={`Give ${formatYen(denom)}`}
+            disabled={!enabled || left === 0}
+            aria-label={
+              left === 0 ? `${formatYen(denom)} — none left` : `Give ${formatYen(denom)}`
+            }
             onClick={() => {
               onGive(denom)
             }}
           >
             {formatYen(denom)}
             <span className="count">{held > 0 ? `×${String(held)}` : '·'}</span>
+            <span className="left">{left}</span>
           </button>
         )
       })}

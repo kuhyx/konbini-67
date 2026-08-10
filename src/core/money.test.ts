@@ -1,15 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import {
   addDenom,
+  boundedChange,
+  canMakeChange,
+  type Denom,
   DENOMS,
   EMPTY_PURSE,
   formatYen,
   greedyChange,
+  OPENING_FLOAT,
   optimalCount,
+  type Purse,
   purseCount,
   purseValue,
   removeDenom,
 } from './money'
+import { createRng, nextInt, type Rng } from './rng'
 
 describe('money', () => {
   it('values an empty purse at zero', () => {
@@ -83,5 +89,109 @@ describe('money', () => {
   it('formats yen with a currency sign and thousands separators', () => {
     expect(formatYen(1240)).toBe('¥1,240')
     expect(formatYen(0)).toBe('¥0')
+  })
+})
+
+/**
+ * Bounded-coin DP: the fewest pieces making `amount` from `drawer`, or
+ * undefined when it cannot be made.
+ *
+ * This is a test oracle, not production code. `boundedChange` ships greedy
+ * because greedy is provably safe for a *divisible* denomination chain, and
+ * this DP is what proves that claim keeps holding — see the note on
+ * `boundedChange` for why that precondition is worth guarding.
+ */
+const dpFewestPieces = (amount: number, drawer: Purse): number | undefined => {
+  const best: number[] = Array.from({ length: amount + 1 }, () => Infinity)
+  best[0] = 0
+  for (const denom of DENOMS) {
+    for (let taken = 0; taken < drawer[denom]; taken += 1) {
+      for (let value = amount; value >= denom; value -= 1) {
+        const candidate = (best[value - denom] ?? Infinity) + 1
+        if (candidate < (best[value] ?? Infinity)) {
+          best[value] = candidate
+        }
+      }
+    }
+  }
+  const answer = best[amount] ?? Infinity
+  return answer === Infinity ? undefined : answer
+}
+
+/**
+ * A seeded drawer with a realistic mix: plenty of small change, few notes.
+ */
+const seededDrawer = (rng: Rng): Purse => {
+  const out: Record<Denom, number> = { ...EMPTY_PURSE }
+  const caps: Record<Denom, number> = {
+    10_000: 2, 5000: 3, 1000: 6, 500: 6, 100: 12, 50: 8, 10: 15, 5: 8, 1: 15,
+  }
+  for (const denom of DENOMS) {
+    out[denom] = nextInt(rng, caps[denom])
+  }
+  return out
+}
+
+describe('canMakeChange', () => {
+  it('is true when the drawer can cover the amount exactly', () => {
+    expect(canMakeChange(350, OPENING_FLOAT)).toBe(true)
+  })
+
+  it('is false when it cannot', () => {
+    // A drawer holding only ¥500 pieces cannot make ¥350.
+    const coarse = addDenom(EMPTY_PURSE, 500)
+    expect(canMakeChange(350, coarse)).toBe(false)
+  })
+
+  it('is true for nothing owed, whatever the drawer holds', () => {
+    expect(canMakeChange(0, EMPTY_PURSE)).toBe(true)
+  })
+})
+
+describe('boundedChange when the drawer is short', () => {
+  it('returns undefined rather than an approximate handful', () => {
+    const coarse = addDenom(EMPTY_PURSE, 500)
+    expect(boundedChange(350, coarse)).toBeUndefined()
+  })
+
+  it('spends what it has when that is exactly enough', () => {
+    let drawer = addDenom(EMPTY_PURSE, 100)
+    drawer = addDenom(drawer, 50)
+    const change = boundedChange(150, drawer)
+    expect(change).toStrictEqual(drawer)
+  })
+})
+
+describe('boundedChange against a DP oracle', () => {
+  // M5's done-condition from the approved plan, run literally: 500 seeded
+  // (target, till) pairs.
+  it('matches the bounded optimum over 500 seeded pairs', () => {
+    let compared = 0
+    let solvable = 0
+    for (let seed = 1; seed <= 500; seed += 1) {
+      const rng = createRng(seed)
+      const drawer = seededDrawer(rng)
+      const target = 1 + nextInt(rng, 2000)
+      const greedy = boundedChange(target, drawer)
+      const optimum = dpFewestPieces(target, drawer)
+      compared += 1
+
+      // Greedy succeeds exactly when the amount is makeable at all.
+      expect(greedy === undefined).toBe(optimum === undefined)
+      if (greedy === undefined || optimum === undefined) {
+        continue
+      }
+      solvable += 1
+      // Never more pieces than the true optimum...
+      expect(purseCount(greedy)).toBe(optimum)
+      // ...and never spending coins the drawer does not hold.
+      for (const denom of DENOMS) {
+        expect(greedy[denom]).toBeLessThanOrEqual(drawer[denom])
+      }
+      expect(purseValue(greedy)).toBe(target)
+    }
+    expect(compared).toBe(500)
+    // Guards the guard: a run where nothing was solvable would pass vacuously.
+    expect(solvable).toBeGreaterThan(50)
   })
 })

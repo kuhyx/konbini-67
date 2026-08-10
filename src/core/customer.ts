@@ -48,25 +48,138 @@ export const basketTotal = (basket: readonly BasketLine[]): number => {
 }
 
 /**
- * What the customer hands over.
+ * How a customer chooses to pay.
  *
- * Deliberately not exact: people pay with round notes, which is precisely
- * what makes the change interesting. Picks the smallest note that covers the
- * total, then sometimes adds loose coins the way real customers do.
+ * This table is load-bearing, not flavour. When every customer paid with one
+ * round note, the drawer became a one-way ratchet: it filled with ¥5,000 notes
+ * and bled ¥1,000/¥100/¥10 until it could not make change at all — measured at
+ * twenty customers, ¥5,000 went 1 → +21 while ¥1,000 hit −55 and ¥100 −60,
+ * with ¥1,000 running dry by the second customer. Real customers vary, and
+ * that variety is what keeps a real till solvent.
  */
-export const makeTender = (rng: Rng, total: number): Purse => {
-  const out: Record<Denom, number> = { ...EMPTY_PURSE }
-  let note: Denom = 1000
-  if (total > 5000) {
-    note = 10_000
-  } else if (total > 1000) {
-    note = 5000
+export type PaymentStyle =
+  /**
+   * Counts out the exact amount.
+   */
+  | 'exact'
+  /**
+   * Exact notes, then digs for coins so the change comes back round.
+   */
+  | 'near-exact'
+  /**
+   * One note that covers it, nothing else.
+   */
+  | 'one-note'
+  /**
+   * Several smaller notes rather than one big one.
+   */
+  | 'small-notes'
+  /**
+   * A handful: a note plus whatever coins are in the pocket.
+   */
+  | 'scatter'
+
+export const PAYMENT_STYLE_ORDER = [
+  'exact',
+  'near-exact',
+  'one-note',
+  'small-notes',
+  'scatter',
+] as const satisfies readonly PaymentStyle[]
+
+/**
+ * Cumulative upper bound for each style, walked in `PAYMENT_STYLE_ORDER`.
+ *
+ * Weighted toward the styles that put small money *into* the drawer, because
+ * that is what the change-making then spends back out. `scatter` closes the
+ * range at 1 so the walk always terminates on a real style — no unreachable
+ * fallback arm.
+ */
+const STYLE_CEILING: Record<PaymentStyle, number> = {
+  exact: 0.2,
+  'near-exact': 0.45,
+  'one-note': 0.65,
+  'small-notes': 0.85,
+  scatter: 1,
+}
+
+/**
+ * Picks a payment style from the generator.
+ */
+export const pickPaymentStyle = (rng: Rng): PaymentStyle => {
+  const roll = nextFloat(rng)
+  let chosen: PaymentStyle = 'scatter'
+  for (const style of PAYMENT_STYLE_ORDER) {
+    if (roll < STYLE_CEILING[style]) {
+      chosen = style
+      break
+    }
   }
-  out[note] = 1
-  // Roughly a third of customers dig out coins to round the change off.
-  if (nextFloat(rng) < 0.34) {
-    const coin = pick(rng, [500, 100, 50, 10] as const)
-    out[coin] += 1
+  return chosen
+}
+
+/**
+ * Adds `count` pieces of one denomination to a purse.
+ */
+const addDenoms = (purse: Purse, denom: Denom, count: number): Purse => ({
+  ...purse,
+  [denom]: purse[denom] + count,
+})
+
+/**
+ * The smallest single note that covers `total`.
+ */
+const coveringNote = (total: number): Denom => {
+  if (total > 5000) {
+    return 10_000
+  }
+  if (total > 1000) {
+    return 5000
+  }
+  return 1000
+}
+
+/**
+ * Counts out `amount` exactly, largest pieces first.
+ */
+const exactly = (amount: number): Record<Denom, number> => {
+  const out: Record<Denom, number> = { ...EMPTY_PURSE }
+  let left = amount
+  for (const denom of DENOMS) {
+    out[denom] = Math.floor(left / denom)
+    left %= denom
+  }
+  return out
+}
+
+/**
+ * What the customer hands over, according to how they pay.
+ *
+ * Never less than the total — a purse that could not cover the bill would be a
+ * different mechanic (a declined sale) rather than a change-making problem.
+ */
+export const makeTender = (rng: Rng, total: number, style?: PaymentStyle): Purse => {
+  const chosen = style ?? pickPaymentStyle(rng)
+  if (chosen === 'exact') {
+    return exactly(total)
+  }
+  if (chosen === 'near-exact') {
+    // Rounds up to the next ¥100 and hands that over: the classic "here, I
+    // have the coins" move, which returns round change and feeds the drawer.
+    const rounded = Math.ceil(total / 100) * 100
+    return exactly(rounded)
+  }
+  if (chosen === 'small-notes') {
+    // Pays in ¥1,000 notes rather than reaching for a big one.
+    return addDenoms(EMPTY_PURSE, 1000, Math.max(1, Math.ceil(total / 1000)))
+  }
+  let out = addDenoms(EMPTY_PURSE, coveringNote(total), 1)
+  if (chosen === 'scatter') {
+    // A note plus a pocketful of coins.
+    const coins = 1 + nextInt(rng, 3)
+    for (let n = 0; n < coins; n += 1) {
+      out = addDenoms(out, pick(rng, [500, 100, 50, 10] as const), 1)
+    }
   }
   return out
 }

@@ -12,7 +12,17 @@
 
 import { CIGARETTES, SLOT_TO_CIGARETTE } from './catalog'
 import { customerTotal, makeCustomer, tenderValue } from './customer'
-import { addDenom, type Denom, DENOMS, EMPTY_PURSE, formatYen, type Purse, removeDenom } from './money'
+import {
+  addDenom,
+  type Denom,
+  DENOMS,
+  EMPTY_PURSE,
+  formatYen,
+  mergePurses,
+  OPENING_FLOAT,
+  type Purse,
+  removeDenom,
+} from './money'
 import { createRng, type Rng } from './rng'
 import { type ChangeGrade, gradeChange, parMs, speedPoints } from './score'
 import { type ShelfSpec, shelfSpecForShift } from './shelf'
@@ -50,9 +60,24 @@ export interface ShiftState {
    */
   readonly gaze: Gaze
   /**
-   * Change counted out so far.
+   * Change counted out so far, physically taken from the drawer.
    */
   readonly tray: Purse
+  /**
+   * What is actually in the till.
+   *
+   * Money is conserved: every piece in `tray` came out of here, and a
+   * customer's cash goes in at confirm. You work with what you have.
+   */
+  readonly drawer: Purse
+  /**
+   * The drawer as it stood when this customer's change became owed.
+   *
+   * Grading needs a fixed reference: the live drawer shrinks as the player
+   * counts, so scoring against it would make a clumsy grab look better the
+   * more it took.
+   */
+  readonly drawerAtTender: Purse
   readonly elapsedMs: number
   /**
    * When the current customer stepped up.
@@ -96,6 +121,8 @@ export const createShift = (seed: number, shift = 1): ShiftState => {
     shelfDone: false,
     gaze: 'counter',
     tray: EMPTY_PURSE,
+    drawer: OPENING_FLOAT,
+    drawerAtTender: OPENING_FLOAT,
     elapsedMs: 0,
     customerStartMs: 0,
     frozenUntilMs: 0,
@@ -180,7 +207,13 @@ const onScan = (state: ShiftState): ShiftState => {
   if (state.customer.cigarette !== undefined && !state.shelfDone) {
     return { ...state, scanned, phase: 'shelf', message: 'Cigarettes — pick the slot.' }
   }
-  return { ...state, scanned, phase: 'changing', message: 'Count out the change.' }
+  return {
+    ...state,
+    scanned,
+    phase: 'changing',
+    drawerAtTender: state.drawer,
+    message: 'Count out the change.',
+  }
 }
 
 const onPickSlot = (state: ShiftState, slot: number): ShiftState => {
@@ -195,6 +228,7 @@ const onPickSlot = (state: ShiftState, slot: number): ShiftState => {
     phase: 'changing',
     shelfDone: true,
     gaze: 'counter',
+    drawerAtTender: state.drawer,
     tally: isRight ? state.tally : { ...state.tally, wrongBrand: state.tally.wrongBrand + 1 },
     message: isRight ? 'Right one. Now the change.' : `That's not ${label}. Now the change.`,
   }
@@ -231,18 +265,35 @@ const onUseLookup = (state: ShiftState): ShiftState => {
   }
 }
 
+/**
+ * Picks one piece out of the drawer and into your hand.
+ *
+ * Refuses when the drawer has none left: you cannot hand over a coin that is
+ * not there, and that shortage is the whole point of a finite till.
+ */
 const onGive = (state: ShiftState, denom: number): ShiftState => {
-  if (state.phase !== 'changing' || !isDenom(denom)) {
+  if (state.phase !== 'changing' || !isDenom(denom) || state.drawer[denom] === 0) {
     return state
   }
-  return { ...state, tray: addDenom(state.tray, denom) }
+  return {
+    ...state,
+    tray: addDenom(state.tray, denom),
+    drawer: removeDenom(state.drawer, denom),
+  }
 }
 
+/**
+ * Puts a piece back in the drawer. The exact inverse of {@link onGive}.
+ */
 const onTakeBack = (state: ShiftState, denom: number): ShiftState => {
-  if (state.phase !== 'changing' || !isDenom(denom)) {
+  if (state.phase !== 'changing' || !isDenom(denom) || state.tray[denom] === 0) {
     return state
   }
-  return { ...state, tray: removeDenom(state.tray, denom) }
+  return {
+    ...state,
+    tray: removeDenom(state.tray, denom),
+    drawer: addDenom(state.drawer, denom),
+  }
 }
 
 /**
@@ -274,7 +325,7 @@ const onConfirm = (state: ShiftState): ShiftState => {
   if (state.phase !== 'changing' || !canTender(state)) {
     return state
   }
-  const grade = gradeChange(state.tray, changeOwed(state))
+  const grade = gradeChange(state.tray, changeOwed(state), state.drawerAtTender)
   const par = parMs(lineCount(state.customer), state.customer.cigarette !== undefined)
   const speed = grade.correct ? speedPoints(state.elapsedMs - state.customerStartMs, par) : 0
   const tally: ShiftTally = {
@@ -286,7 +337,10 @@ const onConfirm = (state: ShiftState): ShiftState => {
     drawerDelta: state.tally.drawerDelta + grade.drawerDelta,
     score: state.tally.score + grade.points + speed,
   }
-  return advance(state, tally, confirmMessage(grade))
+  // The customer's cash goes into the till. The tray has already been taken
+  // out of it piece by piece, so this closes the loop: money is conserved.
+  const drawer = mergePurses(state.drawer, state.customer.tender)
+  return advance({ ...state, drawer }, tally, confirmMessage(grade))
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDenom, EMPTY_PURSE, greedyChange } from './money'
+import { addDenom, EMPTY_PURSE, greedyChange, OPENING_FLOAT } from './money'
 import {
   GRADE_ORDER,
   gradeChange,
@@ -13,7 +13,7 @@ import {
 
 describe('gradeChange', () => {
   it('rewards exact, fewest-coins change', () => {
-    const grade = gradeChange(greedyChange(350), 350)
+    const grade = gradeChange(greedyChange(350), 350, OPENING_FLOAT)
     expect(grade.correct).toBe(true)
     expect(grade.surplusCoins).toBe(0)
     expect(grade.drawerDelta).toBe(0)
@@ -26,7 +26,7 @@ describe('gradeChange', () => {
     for (let n = 0; n < 5; n += 1) {
       purse = addDenom(purse, 100)
     }
-    const grade = gradeChange(purse, 500)
+    const grade = gradeChange(purse, 500, OPENING_FLOAT)
     expect(grade.correct).toBe(true)
     expect(grade.surplusCoins).toBe(4)
     expect(grade.points).toBe(SCORE.correctChange - 4 * SCORE.sloppyPerCoin)
@@ -34,7 +34,7 @@ describe('gradeChange', () => {
   })
 
   it('penalises short change and books it against the drawer', () => {
-    const grade = gradeChange(addDenom(EMPTY_PURSE, 100), 350)
+    const grade = gradeChange(addDenom(EMPTY_PURSE, 100), 350, OPENING_FLOAT)
     expect(grade.correct).toBe(false)
     expect(grade.points).toBe(SCORE.wrongChange)
     // Shorted the customer by 250, so the drawer is heavy by 250.
@@ -42,17 +42,32 @@ describe('gradeChange', () => {
   })
 
   it('penalises over-change and drains the drawer', () => {
-    const grade = gradeChange(addDenom(EMPTY_PURSE, 500), 350)
+    const grade = gradeChange(addDenom(EMPTY_PURSE, 500), 350, OPENING_FLOAT)
     expect(grade.correct).toBe(false)
     expect(grade.drawerDelta).toBe(-150)
   })
 
   it('treats an empty tray for a non-zero debt as wrong', () => {
-    expect(gradeChange(EMPTY_PURSE, 10).correct).toBe(false)
+    expect(gradeChange(EMPTY_PURSE, 10, OPENING_FLOAT).correct).toBe(false)
+  })
+
+  it('does not call you sloppy when the till could not have done better', () => {
+    // Drawer holds only ¥500 pieces, so ¥1,000 owed can only be two of them —
+    // but the drawer cannot make it at all. Whatever the clerk managed is by
+    // definition the best available, so no surplus is charged.
+    const coarse = addDenom(EMPTY_PURSE, 500)
+    let paid = EMPTY_PURSE
+    for (let n = 0; n < 10; n += 1) {
+      paid = addDenom(paid, 100)
+    }
+    const grade = gradeChange(paid, 1000, coarse)
+    expect(grade.correct).toBe(true)
+    expect(grade.surplusCoins).toBe(0)
+    expect(grade.points).toBe(SCORE.correctChange)
   })
 
   it('treats an empty tray for a zero debt as right', () => {
-    expect(gradeChange(EMPTY_PURSE, 0).correct).toBe(true)
+    expect(gradeChange(EMPTY_PURSE, 0, OPENING_FLOAT).correct).toBe(true)
   })
 })
 
