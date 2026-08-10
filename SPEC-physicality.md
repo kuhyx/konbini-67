@@ -1,15 +1,17 @@
 # SPEC: physicality pass — M0 completion conditions
 
-> Status: **scope CONFIRMED 2026-08-10, some detail forks still open.** Eight
-> requests. Everything still marked **[DRAFT]** is my proposal, not your
-> decision.
+> Status: **ALL EIGHT BUILT — 2026-08-10.** Every item below is implemented,
+> tested and pushed, with CI green on each commit. 334 tests, 100% coverage on
+> all four metrics, zero exclusions, zero lint suppressions.
 >
-> **Confirmed:** build all eight now (finite cash pulls M5's bounded-coin DP
-> forward; ID checks pull M2 forward; M1 queue/patience slips behind them).
-> Nothing was lost from the numbering. **M0 is NOT signed off — these are its
-> completion conditions**, so the core loop works but reads as too abstract.
-> No money readouts at all: `IN HAND` and `TENDERED` both go, and you commit
-> blind.
+> **What remains is not code.** M0's done-condition is you playing three shifts
+> and saying whether unaided arithmetic under a clock is fun or feels like
+> homework. No automated gate can settle that.
+>
+> Scope as confirmed: all eight at once — finite cash pulled M5's bounded-coin
+> DP forward and ID checks pulled M2 forward, so M1 (queue + patience) slips
+> behind them. Sections still marked **[DRAFT]** record proposals I built on
+> under the cashier principle below; say the word if any reads wrong.
 
 ## The requests, as given
 

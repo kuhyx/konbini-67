@@ -58,8 +58,13 @@ strict-type-checked, @eslint-react, unicorn and sonarjs.
 
 ## Status
 
-M0 is built and its automated gate is green — the counter and the cigarette
-shelf, `npm run check` clean at 100% coverage. It is not signed off yet: M0's
+M0 is built, plus the eight-item physicality pass that came out of playing it
+(`SPEC-physicality.md`): the shift clock is a wall clock you look up at, the
+cigarette shelf is behind you, the till holds a finite amount of money you can
+run out of, beer and tobacco need an ID check you have to make the call on,
+the books get cashed up at the end, and items are swept over the scanner beam
+across a counter with the customer's money loose on it. Nothing totals
+anything for you. `npm run check` clean at 100% coverage. It is not signed off yet: M0's
 done-condition also requires actually playing three shifts and judging whether
 the pressure is fun or feels like homework, and that cannot be automated.
 
