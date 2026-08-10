@@ -97,7 +97,7 @@ When it is not, the drag is friction cosplaying as depth.
 | 3 | The **cash-up screen is gone** (round two's row 11 reverted) | deleted `books.tsx`, `reconcile.ts` |
 | 4 | Scattered money no longer **overlaps** — pieces are spaced ≥ `MIN_GAP` | `layout.ts` |
 | 5 | Customers no longer hand over **useless extra money** — coins come out only when they reduce the piece count | `customer.ts` |
-| 6 | **Sound effects**, four CC0 `.ogg` files, credited | `sound.ts`, `use-sound-cues.ts`, `CREDITS.md` |
+| 6 | **Sound effects**, ten CC0 `.ogg` files, credited — the original four at the counter, plus six for the hot case, the stockroom, cleaning and an impatient customer | `sound.ts`, `use-sound-cues.ts`, `CREDITS.md` |
 | 7 | Items have **different sizes** — an umbrella is not a stick of Pocky | `catalog.ts`, `size` on `ItemSpec` |
 | 8 | The **"check your notes" notebook is removed entirely** | deleted `notebook*.ts(x)` |
 | 9 | This roadmap section — no code | this file |

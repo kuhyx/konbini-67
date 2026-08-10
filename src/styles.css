@@ -412,6 +412,10 @@ button:disabled {
   line-height: 1;
 }
 
+/* Two columns once there is room for them. The summary grew from nine rows
+   to fifteen when the housekeeping tallies started being shown, and a single
+   column pushed "Another shift" below the fold on a 768px-tall laptop — the
+   whole shift should be readable, and restartable, without scrolling. */
 .summary {
   list-style: none;
   padding: 0;
@@ -419,6 +423,36 @@ button:disabled {
   margin: var(--sp-lg) auto;
   font-family: var(--mono);
   font-size: 14px;
+}
+
+@media (min-width: 640px) {
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--sp-xl);
+    max-width: 680px;
+  }
+}
+
+/* Too narrow for a second column, so the fifteen rows have to be won back
+   from the whitespace instead: a smaller grade, tighter rows, less padding.
+   Without this the restart button lands exactly on the fold of a phone. */
+@media (max-width: 639px) {
+  .over {
+    padding: var(--sp-md) var(--sp-sm);
+  }
+
+  .grade {
+    font-size: 48px;
+  }
+
+  .summary {
+    margin: var(--sp-md) auto;
+  }
+
+  .summary li {
+    padding: 2px 0;
+  }
 }
 
 .summary li {
