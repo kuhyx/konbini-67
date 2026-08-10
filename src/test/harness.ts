@@ -1,4 +1,4 @@
-import { afterEach, vi } from 'vitest'
+import { vi } from 'vitest'
 
 export interface RafHarness {
   /**
@@ -15,14 +15,11 @@ export interface RafHarness {
  * All frame-loop coverage in the app funnels through here, because
  * `useGameLoop` is the only hook that owns a loop.
  *
- * Self-restoring: registers its own `afterEach`, so a test calls this and
- * forgets about it. Callers therefore need no module-scoped handle to hold
- * the harness between `beforeEach` and cleanup.
+ * Self-restoring via the `afterEach` in `src/test/setup.ts`, so a test calls
+ * this and forgets about it — no module-scoped handle is needed to hold the
+ * harness between installation and cleanup.
  */
 export const installRaf = (): RafHarness => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
   let queue: FrameRequestCallback[] = []
   let nextHandle = 0
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback): number => {
