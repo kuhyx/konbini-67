@@ -33,6 +33,14 @@ export interface ItemSpec {
    * Requires an age check before it can be sold.
    */
   readonly ageRestricted: boolean
+  /**
+   * Roughly how big the thing is, as a multiplier on the base draw size.
+   *
+   * A vinyl umbrella is not the size of a stick of Pocky, and drawing them
+   * identically made the counter read as a row of icons rather than a pile of
+   * shopping. It is a gameplay value too: a bigger thing is easier to grab.
+   */
+  readonly size: number
 }
 
 /**
@@ -58,21 +66,21 @@ export const ITEM_ORDER = [
 ] as const satisfies readonly ItemId[]
 
 export const ITEMS: Readonly<Record<ItemId, ItemSpec>> = {
-  'onigiri-tuna': { label: 'Tuna Mayo Onigiri', emoji: '🍙', price: 138, ageRestricted: false },
-  'onigiri-salmon': { label: 'Salmon Onigiri', emoji: '🍙', price: 145, ageRestricted: false },
-  'bento-katsu': { label: 'Katsu Bento', emoji: '🍱', price: 598, ageRestricted: false },
-  'sandwich-egg': { label: 'Egg Sandwich', emoji: '🥪', price: 268, ageRestricted: false },
-  melonpan: { label: 'Melonpan', emoji: '🍈', price: 158, ageRestricted: false },
-  oden: { label: 'Oden Set', emoji: '🍢', price: 420, ageRestricted: false },
-  'coffee-can': { label: 'Canned Coffee', emoji: '☕', price: 130, ageRestricted: false },
-  'green-tea': { label: 'Green Tea', emoji: '🍵', price: 151, ageRestricted: false },
-  'energy-drink': { label: 'Energy Drink', emoji: '⚡', price: 216, ageRestricted: false },
-  beer: { label: 'Beer', emoji: '🍺', price: 231, ageRestricted: true },
-  pocky: { label: 'Pocky', emoji: '🍫', price: 162, ageRestricted: false },
-  chips: { label: 'Potato Chips', emoji: '🥔', price: 174, ageRestricted: false },
-  'ice-cream': { label: 'Ice Cream', emoji: '🍦', price: 194, ageRestricted: false },
-  umbrella: { label: 'Vinyl Umbrella', emoji: '☂️', price: 550, ageRestricted: false },
-  batteries: { label: 'AA Batteries', emoji: '🔋', price: 385, ageRestricted: false },
+  'onigiri-tuna': { label: 'Tuna Mayo Onigiri', emoji: '🍙', price: 138, ageRestricted: false, size: 0.8 },
+  'onigiri-salmon': { label: 'Salmon Onigiri', emoji: '🍙', price: 145, ageRestricted: false, size: 0.8 },
+  'bento-katsu': { label: 'Katsu Bento', emoji: '🍱', price: 598, ageRestricted: false, size: 2.2 },
+  'sandwich-egg': { label: 'Egg Sandwich', emoji: '🥪', price: 268, ageRestricted: false, size: 1.15 },
+  melonpan: { label: 'Melonpan', emoji: '🍈', price: 158, ageRestricted: false, size: 1 },
+  oden: { label: 'Oden Set', emoji: '🍢', price: 420, ageRestricted: false, size: 1.75 },
+  'coffee-can': { label: 'Canned Coffee', emoji: '☕', price: 130, ageRestricted: false, size: 0.75 },
+  'green-tea': { label: 'Green Tea', emoji: '🍵', price: 151, ageRestricted: false, size: 1.2 },
+  'energy-drink': { label: 'Energy Drink', emoji: '⚡', price: 216, ageRestricted: false, size: 0.85 },
+  beer: { label: 'Beer', emoji: '🍺', price: 231, ageRestricted: true, size: 1.15 },
+  pocky: { label: 'Pocky', emoji: '🍫', price: 162, ageRestricted: false, size: 0.95 },
+  chips: { label: 'Potato Chips', emoji: '🥔', price: 174, ageRestricted: false, size: 1.9 },
+  'ice-cream': { label: 'Ice Cream', emoji: '🍦', price: 194, ageRestricted: false, size: 0.8 },
+  umbrella: { label: 'Vinyl Umbrella', emoji: '☂️', price: 550, ageRestricted: false, size: 2.6 },
+  batteries: { label: 'AA Batteries', emoji: '🔋', price: 385, ageRestricted: false, size: 0.55 },
 }
 
 /**
@@ -134,6 +142,29 @@ export const CIGARETTES: Readonly<Record<CigaretteId, CigaretteSpec>> = {
   pianissimo: { label: 'Pianissimo', slot: 36, price: 590 },
   'american-spirit': { label: 'American Spirit', slot: 14, price: 660 },
 }
+
+/**
+ * Anything that can be lying on the counter waiting to be rung up.
+ *
+ * A packet of cigarettes is a physical object exactly like an onigiri is: the
+ * clerk fetches it from the wall, puts it down, and passes it over the beam.
+ * Tagging the two apart keeps the catalogue tables separate while letting the
+ * counter hold a single list.
+ */
+export type CounterThing =
+  | { readonly kind: 'item'; readonly id: ItemId }
+  | { readonly kind: 'cigarette'; readonly id: CigaretteId }
+
+/**
+ * How a thing on the counter looks and what it is called.
+ */
+export const describeThing = (
+  thing: CounterThing,
+): { readonly label: string; readonly emoji: string; readonly size: number } =>
+  thing.kind === 'item'
+    ? { label: ITEMS[thing.id].label, emoji: ITEMS[thing.id].emoji, size: ITEMS[thing.id].size }
+    : // A cigarette packet is a small, consistent box whatever the brand.
+      { label: CIGARETTES[thing.id].label, emoji: '🚬', size: 0.8 }
 
 /**
  * Slot number -> brand, derived from {@link CIGARETTES} so the two can never

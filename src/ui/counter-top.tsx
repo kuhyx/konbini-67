@@ -1,64 +1,96 @@
-import type { JSX } from 'react'
-import { ITEMS, type ItemId } from '../core/catalog'
+import type { CSSProperties, JSX } from 'react'
+import { type CounterThing, describeThing } from '../core/catalog'
 import { LASER_X, type Placed, type Point } from '../core/layout'
 import { type Denom, formatYen } from '../core/money'
+import { useDrag } from './use-drag'
 
 export interface CounterTopProperties {
-  readonly goods: readonly Placed<ItemId>[]
+  readonly goods: readonly Placed<CounterThing>[]
+  /**
+   * The customer's money, lying where they put it. Yours to count, not to
+   * move — counting a scattered pile is the whole point of it being physical.
+   */
   readonly cash: readonly Placed<Denom>[]
+  /**
+   * Whether goods can currently be swept over the beam.
+   */
+  readonly canScan: boolean
   readonly onSweep: (item: number, to: Point) => void
 }
 
 /**
- * The counter itself: loose goods on the left, the customer's money on the
- * right, and the scanner beam down the middle.
+ * The counter: your side on the left, the scanner beam down the middle, the
+ * customer's money on the right.
  *
- * Positions are unit coordinates rendered as percentages — nothing here
- * measures a real element, because jsdom has no layout engine and a hit-test
- * against `getBoundingClientRect` would be untestable.
- *
- * Sweeping is a click on the item, which passes it across the beam. A real
- * pointer drag would be the same event with the same arithmetic; the click is
- * what a test can drive without synthesising pointer physics.
+ * Goods are dragged over the beam, because passing an item over a scanner is
+ * a movement and nothing else. Change is *not* dragged — that was tried and
+ * reverted, since choosing which coins make ¥348 is a decision, and decisions
+ * belong on buttons. The two halves of the job are different, so the two
+ * inputs are different.
  */
-export const CounterTop = ({ goods, cash, onSweep }: CounterTopProperties): JSX.Element => (
-  <div className="counter-top">
-    <div className="laser" style={{ left: `${String(LASER_X * 100)}%` }} />
+export const CounterTop = ({
+  goods,
+  cash,
+  canScan,
+  onSweep,
+}: CounterTopProperties): JSX.Element => {
+  // Destructured rather than kept as one object: `drag` is plain state that
+  // the render below reads every frame, and pulling it out keeps that obvious
+  // (to a reader and to the lint rule that watches for ref reads in render).
+  const { drag, surfaceReference, onPointerDown, onPointerMove, onPointerUp } = useDrag({
+    pieces: goods,
+    onDrop: onSweep,
+    enabled: canScan,
+  })
 
-    {goods.map((piece, index) => (
-      <button
-        // Position is what makes each piece distinct; two of the same item can
-        // be lying next to each other.
-        key={`${piece.what}-${String(piece.at.x)}-${String(piece.at.y)}`}
-        type="button"
-        className="good"
-        style={{
-          left: `${String(piece.at.x * 100)}%`,
-          top: `${String(piece.at.y * 100)}%`,
-          transform: `rotate(${String(piece.tilt)}deg)`,
-        }}
-        aria-label={`Scan ${ITEMS[piece.what].label}`}
-        onClick={() => {
-          // Sweep it clear across the beam to the far side.
-          onSweep(index, { x: 0.95, y: piece.at.y })
-        }}
-      >
-        {ITEMS[piece.what].emoji}
-      </button>
-    ))}
+  return (
+    <div
+      className="counter-top"
+      ref={surfaceReference}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+    >
+      <div className="laser" style={{ left: `${String(LASER_X * 100)}%` }} />
 
-    {cash.map((piece) => (
-      <span
-        key={`${String(piece.what)}-${String(piece.at.x)}-${String(piece.at.y)}`}
-        className={piece.what >= 1000 ? 'cash note' : 'cash coin'}
-        style={{
-          left: `${String(piece.at.x * 100)}%`,
-          top: `${String(piece.at.y * 100)}%`,
-          transform: `rotate(${String(piece.tilt)}deg)`,
-        }}
-      >
-        {formatYen(piece.what)}
-      </span>
-    ))}
-  </div>
-)
+      {goods.map((piece, index) => {
+        const held = drag?.index === index ? drag.at : piece.at
+        const thing = describeThing(piece.what)
+        return (
+          <span
+            key={`${piece.what.kind}-${piece.what.id}-${String(index)}`}
+            className={drag?.index === index ? 'good held' : 'good'}
+            style={{
+              left: `${String(held.x * 100)}%`,
+              top: `${String(held.y * 100)}%`,
+              transform: `rotate(${String(piece.tilt)}deg)`,
+              // Size the glyph, not the box. `scale()` inside `transform`
+              // composes after the standalone `translate` that centres the
+              // piece, so it scaled around the wrong origin and every item
+              // still read as one uniform size. Driving `font-size` makes an
+              // umbrella actually larger than a pack of batteries.
+              '--thing-size': String(thing.size),
+            } as CSSProperties}
+            aria-label={thing.label}
+          >
+            {thing.emoji}
+          </span>
+        )
+      })}
+
+      {cash.map((piece, index) => (
+        <span
+          key={`tender-${String(piece.what)}-${String(index)}`}
+          className={piece.what >= 1000 ? 'cash note' : 'cash coin'}
+          style={{
+            left: `${String(piece.at.x * 100)}%`,
+            top: `${String(piece.at.y * 100)}%`,
+            transform: `rotate(${String(piece.tilt)}deg)`,
+          }}
+        >
+          {formatYen(piece.what)}
+        </span>
+      ))}
+    </div>
+  )
+}

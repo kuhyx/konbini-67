@@ -10,8 +10,8 @@
  * which keeps every branch individually reachable from a test.
  */
 
-import { CIGARETTES, type ItemId, SLOT_TO_CIGARETTE } from './catalog'
-import { customerTotal, makeCustomer, tenderValue } from './customer'
+import { CIGARETTES, type CounterThing, SLOT_TO_CIGARETTE } from './catalog'
+import { customerTotal, makeCustomer, tenderFor } from './customer'
 import {
   addDenom,
   type Denom,
@@ -40,7 +40,6 @@ import { type ShelfSpec, shelfSpecForShift } from './shelf'
 import {
   EMPTY_TALLY,
   type Customer,
-  GAZE,
   type Gaze,
   type Phase,
   type Resolution,
@@ -70,14 +69,29 @@ export interface ShiftState {
    * Scanning means sweeping one of these over the beam, so the loose goods
    * have to exist as things with positions rather than as a counter.
    */
-  readonly onCounter: readonly Placed<ItemId>[]
+  readonly onCounter: readonly Placed<CounterThing>[]
   /**
    * The customer's cash, lying on the counter where they put it.
    *
    * A scattered pile rather than a total: counting it is the player's job,
    * which is the whole reason the TENDERED readout was removed.
+   *
+   * Empty until the price has been announced — a customer cannot pay before
+   * they have been told what they owe.
    */
   readonly cashOnCounter: readonly Placed<Denom>[]
+  /**
+   * Change counted out so far, physically taken from the drawer.
+   */
+  readonly tray: Purse
+  /**
+   * What the clerk told the customer they owed.
+   *
+   * Undefined until announced. This is what they actually pay against — say
+   * the wrong number and, if they do not catch it, the wrong number is what
+   * the transaction settles on.
+   */
+  readonly quoted: number | undefined
   /**
    * Whether the cigarette request has been satisfied.
    */
@@ -93,10 +107,6 @@ export interface ShiftState {
    * a decision, and a scored one.
    */
   readonly idShown: IdOutcome | undefined
-  /**
-   * Change counted out so far, physically taken from the drawer.
-   */
-  readonly tray: Purse
   /**
    * What is actually in the till.
    *
@@ -143,9 +153,16 @@ export interface ShiftState {
 const GOODS_AREA = { x: 0.05, y: 0.1, width: 0.35, height: 0.8 }
 
 /**
- * Where the customer drops their money.
+ * Where the customer drops their money — their side of the counter.
  */
-const CASH_AREA = { x: 0.55, y: 0.15, width: 0.4, height: 0.5 }
+const CASH_AREA = { x: 0.62, y: 0.12, width: 0.32, height: 0.45 }
+
+/**
+ * Where a packet fetched from the cigarette wall lands: your side of the
+ * beam, so it still has to be passed over like everything else.
+ */
+const PACKET_AREA = { x: 0.08, y: 0.62, width: 0.22, height: 0.2 }
+
 
 /**
  * Spreads a purse out as individual coins and notes.
@@ -163,11 +180,11 @@ const layOutCash = (rng: Rng, purse: Purse): readonly Placed<Denom>[] => {
 /**
  * Lays a basket out on the counter, one loose item per unit of quantity.
  */
-const layOutBasket = (rng: Rng, customer: Customer): readonly Placed<ItemId>[] => {
-  const loose: ItemId[] = []
+const layOutBasket = (rng: Rng, customer: Customer): readonly Placed<CounterThing>[] => {
+  const loose: CounterThing[] = []
   for (const line of customer.basket) {
     for (let n = 0; n < line.qty; n += 1) {
-      loose.push(line.item)
+      loose.push({ kind: 'item', id: line.item })
     }
   }
   return scatter(rng, loose, GOODS_AREA)
@@ -175,14 +192,26 @@ const layOutBasket = (rng: Rng, customer: Customer): readonly Placed<ItemId>[] =
 
 /**
  * Total items the current customer wants rung up.
+ *
+ * The cigarette packet counts: once fetched it lies on the counter and has to
+ * go over the beam like anything else.
  */
 export const lineCount = (customer: Customer): number => {
-  let count = 0
+  let count = customer.cigarette === undefined ? 0 : 1
   for (const line of customer.basket) {
     count += line.qty
   }
   return count
 }
+
+/**
+ * Items rung up before the cigarette request interrupts.
+ *
+ * The packet is not on the counter until it has been fetched, so the scanning
+ * phase pauses one short of the full count. Only ever asked about a customer
+ * who wants cigarettes, hence the unconditional subtraction.
+ */
+const basketCount = (customer: Customer): number => lineCount(customer) - 1
 
 /**
  * Starts a shift. `shift` is 1-based and drives the shelf escalation.
@@ -202,12 +231,14 @@ export const createShift = (seed: number, shift = 1, float: Purse = OPENING_FLOA
     rng,
     customer,
     onCounter: layOutBasket(rng, customer),
-    cashOnCounter: layOutCash(rng, customer.tender),
+    // Nothing yet: they pay once they have been told the price.
+    cashOnCounter: [],
+    tray: EMPTY_PURSE,
+    quoted: undefined,
     scanned: 0,
     shelfDone: false,
     gaze: 'counter',
     idShown: undefined,
-    tray: EMPTY_PURSE,
     drawer: float,
     drawerAtTender: float,
     openingFloat: float,
@@ -221,10 +252,42 @@ export const createShift = (seed: number, shift = 1, float: Purse = OPENING_FLOA
 }
 
 /**
- * Yen still owed to the customer.
+ * What is physically on the counter in front of you, in yen.
  */
-export const changeOwed = (state: ShiftState): number =>
-  tenderValue(state.customer) - customerTotal(state.customer)
+export const cashPaid = (state: ShiftState): number => {
+  let total = 0
+  for (const piece of state.cashOnCounter) {
+    total += piece.what
+  }
+  return total
+}
+
+/**
+ * The money on the counter, as a purse — what goes into the till at confirm.
+ */
+const paidPurse = (state: ShiftState): Purse => {
+  let purse = EMPTY_PURSE
+  for (const piece of state.cashOnCounter) {
+    purse = addDenom(purse, piece.what)
+  }
+  return purse
+}
+
+/**
+ * Yen still owed to the customer.
+ *
+ * Measured against the price you *quoted*, not what the till says: the
+ * customer paid the number they were told, so that is the number the change
+ * has to come back from. Quoting wrong and then making correct change against
+ * the wrong quote is a clean-looking transaction with a hole in the drawer.
+ */
+export const changeOwed = (state: ShiftState): number => cashPaid(state) - quotedPrice(state)
+
+/**
+ * The price the customer was told, falling back to the true total before one
+ * has been said. Nothing pays out against a quote that does not exist yet.
+ */
+const quotedPrice = (state: ShiftState): number => state.quoted ?? customerTotal(state.customer)
 
 /**
  * Whether every item is scanned and any cigarette request is handled.
@@ -259,12 +322,13 @@ const advance = (state: ShiftState, tally: ShiftTally, message: string): ShiftSt
     rng,
     customer,
     onCounter: layOutBasket(rng, customer),
-    cashOnCounter: layOutCash(rng, customer.tender),
+    cashOnCounter: [],
+    tray: EMPTY_PURSE,
+    quoted: undefined,
     scanned: 0,
     shelfDone: false,
     gaze: 'counter',
     idShown: undefined,
-    tray: EMPTY_PURSE,
     customerStartMs: state.elapsedMs,
     tally,
     message,
@@ -294,20 +358,73 @@ const onScan = (state: ShiftState): ShiftState => {
     return state
   }
   const scanned = state.scanned + 1
-  if (scanned < total) {
+  // The packet is not on the counter yet, so the basket runs out one short of
+  // the full count and the customer's request interrupts here.
+  if (state.customer.cigarette !== undefined && !state.shelfDone) {
+    if (scanned >= basketCount(state.customer)) {
+      return { ...state, scanned, phase: 'shelf', message: 'Cigarettes — pick the slot.' }
+    }
     return { ...state, scanned }
   }
-  if (state.customer.cigarette !== undefined && !state.shelfDone) {
-    return { ...state, scanned, phase: 'shelf', message: 'Cigarettes — pick the slot.' }
+  if (scanned < total) {
+    return { ...state, scanned }
   }
   return {
     ...state,
     scanned,
-    phase: 'changing',
-    drawerAtTender: state.drawer,
-    message: 'Count out the change.',
+    phase: 'announcing',
+    message: 'Tell them what it comes to.',
   }
 }
+
+/**
+ * Says a price out loud — whatever price the clerk typed.
+ *
+ * The register shows the right number, but saying it is still a thing a human
+ * does, and humans transpose digits. Quote the wrong amount and one of two
+ * things happens, decided per customer when they walked in:
+ *
+ * - **They are paying attention.** They query it, you are told, and nothing
+ *   is settled: type it again.
+ * - **They are not.** They pay the number you said. If you overcharged, the
+ *   drawer ends the shift long; if you undercharged, it ends short. Either
+ *   way nobody mentions it, and you meet it at cash-up.
+ *
+ * That asymmetry is the whole mechanic: you never know which kind of customer
+ * you got until you have already made the mistake.
+ */
+const onAnnounce = (state: ShiftState, amount: number): ShiftState => {
+  if (state.phase !== 'announcing' || isFrozen(state)) {
+    return state
+  }
+  const owed = customerTotal(state.customer)
+  if (amount !== owed && state.customer.willQueryThePrice) {
+    return {
+      ...state,
+      elapsedMs: state.elapsedMs + MISQUOTE_MS,
+      message: `“Sorry — ${formatYen(amount)}? I make it less than that.” Try again.`,
+    }
+  }
+  const rng: Rng = { s: state.rng.s }
+  const misquote = amount - owed
+  return {
+    ...state,
+    rng,
+    phase: 'changing',
+    quoted: amount,
+    cashOnCounter: layOutCash(rng, tenderFor(state.customer, amount)),
+    drawerAtTender: state.drawer,
+    message:
+      misquote === 0
+        ? `“${formatYen(amount)}, please.” They put their money down.`
+        : `“${formatYen(amount)}, please.” They pay it without looking up.`,
+  }
+}
+
+/**
+ * How long being pulled up on a wrong price costs you.
+ */
+const MISQUOTE_MS = 4000
 
 /**
  * Sweeps one item across the counter.
@@ -340,14 +457,22 @@ const onPickSlot = (state: ShiftState, slot: number): ShiftState => {
   }
   const isRight = SLOT_TO_CIGARETTE.get(slot) === wanted.cigarette
   const label = CIGARETTES[wanted.cigarette].label
+  // The packet is a physical thing: you fetch it, put it on the counter, and
+  // it still has to go over the beam like everything else.
+  const rng: Rng = { s: state.rng.s }
+  const picked = SLOT_TO_CIGARETTE.get(slot) ?? wanted.cigarette
+  const packet = scatter(rng, [{ kind: 'cigarette', id: picked } as const], PACKET_AREA)
   return {
     ...state,
-    phase: 'changing',
+    rng,
+    phase: 'scanning',
     shelfDone: true,
     gaze: 'counter',
-    drawerAtTender: state.drawer,
+    onCounter: [...state.onCounter, ...packet],
     tally: isRight ? state.tally : { ...state.tally, wrongBrand: state.tally.wrongBrand + 1 },
-    message: isRight ? 'Right one. Now the change.' : `That's not ${label}. Now the change.`,
+    message: isRight
+      ? 'You put the packet on the counter.'
+      : `That's not ${label}. You put it on the counter anyway.`,
   }
 }
 
@@ -357,21 +482,24 @@ const onPickSlot = (state: ShiftState, slot: number): ShiftState => {
  * Costs nothing but the time it takes — a real clerk is not fined for glancing
  * at the clock. The cost is that the shift keeps running while the customer is
  * out of view, so whatever you looked away to find, you had better remember.
+ *
+ * The message is left alone on purpose: where you are looking is obvious from
+ * what is in front of you, and narrating it would trample the line that
+ * actually carries information ("No beep. Try again.").
  */
 const onLook = (state: ShiftState, at: Gaze): ShiftState => {
   if (isFrozen(state) || state.gaze === at) {
     return state
   }
-  return { ...state, gaze: at, message: GAZE[at].label }
+  return { ...state, gaze: at }
 }
 
 const onUseLookup = (state: ShiftState): ShiftState => {
-  if (state.shelf.mode === 'labelled' || state.gaze === 'notebook') {
+  if (state.shelf.mode === 'labelled' || isFrozen(state)) {
     return state
   }
   return {
     ...state,
-    gaze: 'notebook',
     frozenUntilMs: state.elapsedMs + state.shelf.lookupFreezeMs,
     tally: {
       ...state.tally,
@@ -500,7 +628,7 @@ const onResolve = (state: ShiftState, how: Resolution): ShiftState => {
       served: state.tally.served + 1,
       drawerDelta: state.tally.drawerDelta + gap,
     }
-    const drawer = mergePurses(state.drawer, state.customer.tender)
+    const drawer = mergePurses(state.drawer, paidPurse(state))
     const takings = state.takings + customerTotal(state.customer)
     return advance(
       { ...state, rng, elapsedMs, drawer, takings },
@@ -509,9 +637,10 @@ const onResolve = (state: ShiftState, how: Resolution): ShiftState => {
     )
   }
   // Card, or smaller money: the sale closes cleanly with no change at all.
+  // Whatever was already counted out goes back in the drawer either way.
   const tally: ShiftTally = { ...state.tally, served: state.tally.served + 1 }
   const drawer =
-    how === 'offer-card' ? state.drawer : mergePurses(state.drawer, state.customer.tender)
+    how === 'offer-card' ? state.drawer : mergePurses(state.drawer, paidPurse(state))
   // Card money never touches the till, so it is not part of what the drawer
   // should hold at close — only cash sales count toward the books.
   const takings = state.takings + (how === 'offer-card' ? 0 : customerTotal(state.customer))
@@ -579,6 +708,13 @@ const onConfirm = (state: ShiftState): ShiftState => {
     return state
   }
   const grade = gradeChange(state.tray, changeOwed(state), state.drawerAtTender)
+  // A price you quoted wrong and they did not catch is money the shop is out
+  // by, quietly. It never announces itself at the counter — you meet it when
+  // the drawer does not balance.
+  // `canTender` has already established the phase is `changing`, which is
+  // only reachable through the announcement that sets `quoted` — so this is
+  // read directly rather than defaulted.
+  const misquote = quotedPrice(state) - customerTotal(state.customer)
   // Selling beer or tobacco without looking at an ID is its own mistake,
   // whether or not the customer happened to be old enough. Getting away with
   // it is not the same as doing it right.
@@ -591,12 +727,17 @@ const onConfirm = (state: ShiftState): ShiftState => {
     exactChange: state.tally.exactChange + (grade.correct ? 1 : 0),
     wrongChange: state.tally.wrongChange + (grade.correct ? 0 : 1),
     sloppyChange: state.tally.sloppyChange + (grade.surplusCoins > 0 ? 1 : 0),
-    drawerDelta: state.tally.drawerDelta + grade.drawerDelta,
+    misquoted: state.tally.misquoted + (misquote === 0 ? 0 : 1),
+    drawerDelta: state.tally.drawerDelta + grade.drawerDelta + misquote,
     score: state.tally.score + grade.points + speed + idPoints,
   }
-  // The customer's cash goes into the till. The tray has already been taken
-  // out of it piece by piece, so this closes the loop: money is conserved.
-  const drawer = mergePurses(state.drawer, state.customer.tender)
+  // The cash physically on the counter goes into the till. The tray has
+  // already been taken out of it piece by piece, so this closes the loop:
+  // money is conserved.
+  const drawer = mergePurses(state.drawer, paidPurse(state))
+  // Takings are what the shop *should* have taken — the real price of the
+  // goods. Quoting wrong does not change what the basket was worth, which is
+  // precisely why the discrepancy shows up.
   const takings = state.takings + customerTotal(state.customer)
   return advance({ ...state, drawer, takings }, tally, confirmMessage(grade))
 }
@@ -631,6 +772,9 @@ export const reduce = (state: ShiftState, event: ShiftEvent): ShiftState => {
     }
     case 'use-lookup': {
       return onUseLookup(state)
+    }
+    case 'announce': {
+      return onAnnounce(state, event.amount)
     }
     case 'give': {
       return onGive(state, event.denom)

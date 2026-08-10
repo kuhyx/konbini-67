@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { CIGARETTES } from '../core/catalog'
-import { makeCustomer, tenderValue } from '../core/customer'
+import { customerTotal, makeCustomer, tenderValue } from '../core/customer'
 import { createRng } from '../core/rng'
 import { shelfSpecForShift } from '../core/shelf'
 import { requestLine } from '../core/speech'
@@ -58,42 +58,43 @@ describe('requestLine', () => {
 describe('Counter', () => {
   it('shows the customer and what they said', () => {
     const customer = withoutCigarettes()
-    render(<Counter customer={customer} scanned={0} showTotal={false} />)
+    render(<Counter customer={customer} showTotal={false} />)
     expect(screen.getByText(customer.name)).toBeInTheDocument()
     expect(screen.getByText(/Just these/)).toBeInTheDocument()
   })
 
-  it('hides prices until an item is rung up', () => {
+  it('never lists what they are buying — that is on the counter', () => {
     const customer = withoutCigarettes()
-    render(<Counter customer={customer} scanned={0} showTotal={false} />)
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
-    expect(screen.getByText(/SCANNING/)).toBeInTheDocument()
+    const { container } = render(<Counter customer={customer} showTotal={false} />)
+    // Reading the basket off a panel would be looking at the wrong thing: the
+    // shopping is physically in front of you.
+    expect(container.querySelectorAll('.receipt')).toHaveLength(0)
+    expect(screen.queryByText(/SCANNING/)).not.toBeInTheDocument()
   })
 
-  it('reveals a price once the item is scanned', () => {
+  it('keeps the register dark until everything is rung up', () => {
     const customer = withoutCigarettes()
-    const { container } = render(
-      <Counter customer={customer} scanned={1} showTotal={false} />,
-    )
-    expect(container.querySelectorAll('.rung')).toHaveLength(1)
+    const { container } = render(<Counter customer={customer} showTotal={false} />)
+    expect(container.querySelectorAll('.register')).toHaveLength(0)
   })
 
-  it('shows the basket total once everything is rung up', () => {
+  it('shows the register total once everything is rung up', () => {
     const customer = withoutCigarettes()
-    render(<Counter customer={customer} scanned={99} showTotal />)
+    render(<Counter customer={customer} showTotal />)
     // A real register does total the basket for you — that part is not the
     // player's arithmetic, so it stays.
-    expect(screen.getByText('TOTAL')).toBeInTheDocument()
+    expect(screen.getByText('REGISTER')).toBeInTheDocument()
+    const total = formatYen(customerTotal(customer))
+    expect(screen.getByText(total)).toBeInTheDocument()
   })
 
   it('never reveals what the customer handed over', () => {
     const customer = withoutCigarettes()
-    render(<Counter customer={customer} scanned={99} showTotal />)
+    render(<Counter customer={customer} showTotal />)
     // The money is on the counter; counting it is the player's job, so the
     // tendered amount must not appear anywhere — nor the change due.
     expect(screen.queryByText('TENDERED')).not.toBeInTheDocument()
     const tendered = formatYen(tenderValue(customer))
     expect(screen.queryByText(tendered)).not.toBeInTheDocument()
-    expect(screen.getByText(/Count it, then count out the change/)).toBeInTheDocument()
   })
 })

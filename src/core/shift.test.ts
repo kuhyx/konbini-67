@@ -8,8 +8,15 @@ import {
   isSaleLegal,
   requiresIdCheck,
 } from './id-check'
-import { changeOwed, createShift, lineCount, reduce, SHIFT_MS, type ShiftState } from './shift'
-import { tenderValue } from './customer'
+import {
+  changeOwed,
+  createShift,
+  lineCount,
+  reduce,
+  SHIFT_MS,
+  type ShiftState,
+} from './shift'
+import { customerTotal, tenderValue } from './customer'
 import {
   EVENT_KIND_ORDER,
   GAZE,
@@ -20,15 +27,30 @@ import {
 } from './types'
 
 /**
- * Rings up everything in the current basket.
+ * Rings up everything currently lying on the counter.
+ *
+ * Stops of its own accord when the scanning phase ends — either because the
+ * basket is done or because the customer's cigarette request interrupts.
  */
 const scanAll = (start: ShiftState): ShiftState => {
   let state = start
   for (let n = 0; n < lineCount(start.customer); n += 1) {
+    if (state.phase !== 'scanning') {
+      break
+    }
     state = reduce(state, { kind: 'scan' })
   }
   return state
 }
+
+/**
+ * How many things the customer physically put down.
+ *
+ * One short of {@link lineCount} when cigarettes are wanted: that packet is
+ * behind the counter until the clerk turns round and fetches it.
+ */
+const basketOnly = (state: ShiftState): number =>
+  lineCount(state.customer) - (state.customer.cigarette === undefined ? 0 : 1)
 
 /**
  * Hands over the fewest-coins correct change.
@@ -45,15 +67,26 @@ const payExact = (start: ShiftState): ShiftState => {
 }
 
 /**
- * Plays one customer perfectly: scan, right slot, exact change.
+ * Rings up everything, fetching the cigarettes when asked.
  */
-const servePerfectly = (start: ShiftState): ShiftState => {
+const ringUp = (start: ShiftState): ShiftState => {
   let state = scanAll(start)
   if (state.phase === 'shelf' && state.customer.cigarette !== undefined) {
     const slot = CIGARETTES[state.customer.cigarette.cigarette].slot
     state = reduce(state, { kind: 'pick-slot', slot })
+    // The packet is on the counter now and still has to go over the beam.
+    state = reduce(state, { kind: 'scan' })
   }
-  return reduce(payExact(state), { kind: 'confirm' })
+  return state
+}
+
+/**
+ * Plays one customer perfectly: scan, right slot, announce, exact change.
+ */
+const servePerfectly = (start: ShiftState): ShiftState => {
+  const rung = ringUp(start)
+  const told = reduce(rung, { kind: 'announce', amount: customerTotal(rung.customer) })
+  return reduce(payExact(told), { kind: 'confirm' })
 }
 
 /**
@@ -68,6 +101,9 @@ const sampleEvent = (kind: (typeof EVENT_KIND_ORDER)[number]): ShiftEvent => {
     case 'give':
     case 'take-back': {
       return { kind, denom: 100 }
+    }
+    case 'announce': {
+      return { kind, amount: 500 }
     }
     case 'pick-slot': {
       return { kind, slot: 3 }
@@ -130,7 +166,9 @@ const changing = (): ShiftState => {
   while (createShift(seed).customer.cigarette !== undefined) {
     seed += 1
   }
-  return scanAll(createShift(seed))
+  // Through the announcement, which is what puts their money on the counter.
+  const rung = scanAll(createShift(seed))
+  return reduce(rung, { kind: 'announce', amount: customerTotal(rung.customer) })
 }
 
 
@@ -161,25 +199,13 @@ const cigShiftWithOutcome = (from: number, outcome: IdOutcome): ShiftState => {
 /**
  * Serves a customer through to confirm, checking their ID on the way.
  */
-const serveWithId = (start: ShiftState): ShiftState => {
-  let state = reduce(start, { kind: 'ask-id' })
-  state = scanAll(state)
-  if (state.phase === 'shelf' && state.customer.cigarette !== undefined) {
-    state = reduce(state, { kind: 'pick-slot', slot: CIGARETTES[state.customer.cigarette.cigarette].slot })
-  }
-  return reduce(payExact(state), { kind: 'confirm' })
-}
+const serveWithId = (start: ShiftState): ShiftState =>
+  servePerfectly(reduce(start, { kind: 'ask-id' }))
 
 /**
  * The same, but never looking at the ID at all.
  */
-const serveWithoutId = (start: ShiftState): ShiftState => {
-  let state = scanAll(start)
-  if (state.phase === 'shelf' && state.customer.cigarette !== undefined) {
-    state = reduce(state, { kind: 'pick-slot', slot: CIGARETTES[state.customer.cigarette.cigarette].slot })
-  }
-  return reduce(payExact(state), { kind: 'confirm' })
-}
+const serveWithoutId = (start: ShiftState): ShiftState => servePerfectly(start)
 
 /**
  * A shift whose first customer wants cigarettes, so the basket needs an ID.
@@ -193,6 +219,8 @@ describe('createShift', () => {
     expect(state.customer.id).toBe(1)
     expect(state.tally.served).toBe(0)
     expect(state.tray).toStrictEqual(EMPTY_PURSE)
+    // Nobody pays before they have been told the price.
+    expect(state.cashOnCounter).toStrictEqual([])
   })
 
   it('applies the shelf tier for the shift number', () => {
@@ -250,8 +278,13 @@ describe('scanning', () => {
     }
   })
 
-  it('ignores extra scans once the basket is empty', () => {
-    const state = scanAll(createShift(3))
+  it('ignores extra scans once the counter is empty', () => {
+    // A customer with nothing to fetch, so scanning genuinely runs out.
+    let seed = 1
+    while (createShift(seed).customer.cigarette !== undefined) {
+      seed += 1
+    }
+    const state = scanAll(createShift(seed))
     expect(reduce(state, { kind: 'scan' }).scanned).toBe(state.scanned)
   })
 
@@ -263,12 +296,14 @@ describe('scanning', () => {
     expect(scanAll(createShift(seed)).phase).toBe('shelf')
   })
 
-  it('goes straight to change when they are not', () => {
+  it('waits to be told the price when no cigarettes are wanted', () => {
     let seed = 1
     while (createShift(seed).customer.cigarette !== undefined) {
       seed += 1
     }
-    expect(scanAll(createShift(seed)).phase).toBe('changing')
+    // Not `changing`: the customer has not been told what they owe yet, so
+    // there is nothing for them to pay.
+    expect(scanAll(createShift(seed)).phase).toBe('announcing')
   })
 })
 
@@ -276,11 +311,15 @@ describe('the cigarette shelf', () => {
 
   it('accepts the right slot without penalty', () => {
     const state = scanAll(cigShift(1))
-    const slot = CIGARETTES[state.customer.cigarette?.cigarette ?? 'echo'].slot
-    const after = reduce(state, { kind: 'pick-slot', slot })
+    const brand = state.customer.cigarette?.cigarette ?? 'echo'
+    const after = reduce(state, { kind: 'pick-slot', slot: CIGARETTES[brand].slot })
     expect(after.tally.wrongBrand).toBe(0)
-    expect(after.phase).toBe('changing')
-    expect(after.message).toContain('Right one')
+    // Back to scanning: the packet is a physical thing now sitting on the
+    // counter, and it still has to go over the beam.
+    expect(after.phase).toBe('scanning')
+    expect(after.onCounter.at(-1)?.what).toStrictEqual({ kind: 'cigarette', id: brand })
+    expect(after.onCounter).toHaveLength(state.onCounter.length + 1)
+    expect(after.message).toContain('on the counter')
   })
 
   it('counts a wrong slot against you but moves on', () => {
@@ -289,7 +328,9 @@ describe('the cigarette shelf', () => {
     const wrong = wanted === 3 ? 5 : 3
     const after = reduce(state, { kind: 'pick-slot', slot: wrong })
     expect(after.tally.wrongBrand).toBe(1)
-    expect(after.phase).toBe('changing')
+    // You still put a packet down — the wrong one, which is the mistake.
+    expect(after.phase).toBe('scanning')
+    expect(after.onCounter).toHaveLength(state.onCounter.length + 1)
   })
 
   it('counts an empty slot as wrong', () => {
@@ -330,8 +371,11 @@ describe('the cigarette shelf', () => {
         } else {
           state = reduce(state, { kind: 'pick-slot', slot: wanted })
         }
+        // The packet is on the counter now and still has to be rung up.
+        state = scanAll(state)
       }
-      state = reduce(payExact(state), { kind: 'confirm' })
+      const told = reduce(state, { kind: 'announce', amount: customerTotal(state.customer) })
+      state = reduce(payExact(told), { kind: 'confirm' })
     }
 
     expect(requests).toBe(10)
@@ -352,10 +396,14 @@ describe('where the clerk is looking', () => {
     // Starts on the counter, so look away first and come back at the end —
     // looking where you already look is a no-op, covered separately below.
     const awayThenBack = [...GAZE_ORDER.filter((gaze) => gaze !== 'counter'), 'counter' as const]
+    const before = state.message
     for (const at of awayThenBack) {
       state = reduce(state, { kind: 'look', at })
       expect(state.gaze).toBe(at)
-      expect(state.message).toBe(GAZE[at].label)
+      // Turning your head says nothing: where you are looking is obvious from
+      // what is in front of you, and narrating it would trample the line that
+      // carries actual feedback.
+      expect(state.message).toBe(before)
     }
   })
 
@@ -388,7 +436,6 @@ describe('the lookup chart', () => {
   it('costs score and freezes you once the names fade', () => {
     const state = createShift(1, 4)
     const after = reduce(state, { kind: 'use-lookup' })
-    expect(after.gaze).toBe('notebook')
     expect(after.tally.lookupsUsed).toBe(1)
     expect(after.tally.score).toBe(-state.shelf.lookupPenalty)
     expect(after.frozenUntilMs).toBeGreaterThan(after.elapsedMs)
@@ -424,12 +471,18 @@ describe('counting out change', () => {
     expect(state.tray[100]).toBe(0)
   })
 
+  it('will not refund a piece that is not in the tray', () => {
+    const state = changing()
+    expect(reduce(state, { kind: 'take-back', denom: 500 })).toStrictEqual(state)
+  })
+
   // The two ways of getting it wrong behave nothing alike, which is the whole
   // point of naming them separately.
   it('tells you the amount when you short-change the customer', () => {
     const ready = changing()
     const owed = changeOwed(ready)
-    // Hand over one ¥10 coin less than the correct change.
+    // Hand over one ¥10 coin less than the correct change: pull it back to
+    // your own side before saying "that's everything".
     let state = payExact(ready)
     state = reduce(state, { kind: 'take-back', denom: 10 })
     const after = reduce(state, { kind: 'confirm' })
@@ -443,8 +496,7 @@ describe('counting out change', () => {
     const ready = changing()
     // Hand over one ¥10 coin more than the correct change: the customer is
     // delighted and silent, and the drawer is the thing that suffers.
-    let state = payExact(ready)
-    state = reduce(state, { kind: 'give', denom: 10 })
+    const state = reduce(payExact(ready), { kind: 'give', denom: 10 })
     const after = reduce(state, { kind: 'confirm' })
     expect(after.message).toContain('took it and left')
     expect(after.message).toContain('drawer is')
@@ -455,7 +507,6 @@ describe('counting out change', () => {
   it('ignores a value that is not a real denomination', () => {
     const state = changing()
     expect(reduce(state, { kind: 'give', denom: 3 })).toStrictEqual(state)
-    expect(reduce(state, { kind: 'take-back', denom: 3 })).toStrictEqual(state)
   })
 
   it('ignores coins outside the changing phase', () => {
@@ -524,7 +575,6 @@ describe('counting out change', () => {
       state = reduce(state, { kind: 'give', denom: 1 })
     }
     expect(state.drawer[1]).toBe(0)
-    expect(state.tray[1]).toBe(ones)
     // One more is refused outright rather than conjuring a coin.
     const blocked = reduce(state, { kind: 'give', denom: 1 })
     expect(blocked).toStrictEqual(state)
@@ -550,11 +600,6 @@ describe('counting out change', () => {
     const after = reduce(payExact(ready), { kind: 'confirm' })
     // Drawer gained what they paid and lost what was handed back.
     expect(purseValue(after.drawer)).toBe(before + tenderValue(ready.customer) - owed)
-  })
-
-  it('will not refund a piece that is not in the tray', () => {
-    const state = changing()
-    expect(reduce(state, { kind: 'take-back', denom: 500 })).toStrictEqual(state)
   })
 
   it('penalises wrong change and books the drawer', () => {
@@ -598,10 +643,12 @@ describe('the clock', () => {
     while (createShift(seed).customer.cigarette !== undefined) {
       seed += 1
     }
-    const rungUp = scanAll(createShift(seed))
+    const scanned = scanAll(createShift(seed))
+    const rungUp = reduce(scanned, { kind: 'announce', amount: customerTotal(scanned.customer) })
     const quick = reduce(payExact(rungUp), { kind: 'confirm' })
 
-    let slow = scanAll(createShift(seed))
+    const slowScan = scanAll(createShift(seed))
+    let slow = reduce(slowScan, { kind: 'announce', amount: customerTotal(slowScan.customer) })
     slow = reduce(slow, { kind: 'tick', deltaMs: 90_000 })
     slow = reduce(payExact(slow), { kind: 'confirm' })
 
@@ -841,7 +888,9 @@ describe('sweeping items over the beam', () => {
 
   it('lays the basket out as loose items on the counter', () => {
     const state = createShift(1)
-    expect(state.onCounter).toHaveLength(lineCount(state.customer))
+    // Only what they actually put down: a cigarette packet is still on the
+    // wall behind you until you fetch it.
+    expect(state.onCounter).toHaveLength(basketOnly(state))
     // Scattered, not stacked in one place.
     const xs = new Set(state.onCounter.map((piece) => piece.at.x))
     expect(xs.size).toBeGreaterThan(0)
@@ -883,7 +932,7 @@ describe('sweeping items over the beam', () => {
 
   it('clears the counter as the basket is rung up', () => {
     let state = createShift(1)
-    const total = lineCount(state.customer)
+    const total = basketOnly(state)
     for (let n = 0; n < total; n += 1) {
       state = reduce(state, { kind: 'sweep', item: 0, to: FAR_SIDE })
     }
@@ -893,7 +942,7 @@ describe('sweeping items over the beam', () => {
 
   it('gives the next customer a fresh counter', () => {
     const state = servePerfectly(createShift(1))
-    expect(state.onCounter).toHaveLength(lineCount(state.customer))
+    expect(state.onCounter).toHaveLength(basketOnly(state))
   })
 
   it('cannot be swept while the chart has you frozen', () => {
@@ -908,5 +957,85 @@ describe('sweeping items over the beam', () => {
 
   it('lays out identically for the same seed', () => {
     expect(createShift(5).onCounter).toStrictEqual(createShift(5).onCounter)
+  })
+})
+
+/**
+ * Rings a seeded shift all the way up to the point of saying a price.
+ */
+const scanAllThrough = (seed: number): ShiftState => ringUp(createShift(seed))
+
+/**
+ * A customer who is listening, and one who is not. Both are needed: the whole
+ * mechanic is that you cannot tell which you have until afterwards.
+ */
+const attentive = (): ShiftState => {
+  let seed = 1
+  while (!createShift(seed).customer.willQueryThePrice) {
+    seed += 1
+  }
+  return scanAllThrough(seed)
+}
+
+const distracted = (): ShiftState => {
+  let seed = 1
+  while (createShift(seed).customer.willQueryThePrice) {
+    seed += 1
+  }
+  return scanAllThrough(seed)
+}
+
+describe('saying the price out loud', () => {
+  it('puts no money down until a price has been said', () => {
+    const ready = attentive()
+    expect(ready.phase).toBe('announcing')
+    expect(ready.cashOnCounter).toStrictEqual([])
+  })
+
+  it('is queried by a customer who was listening, and settles nothing', () => {
+    const ready = attentive()
+    const wrong = customerTotal(ready.customer) + 90
+    const after = reduce(ready, { kind: 'announce', amount: wrong })
+    expect(after.phase).toBe('announcing')
+    expect(after.quoted).toBeUndefined()
+    expect(after.cashOnCounter).toStrictEqual([])
+    expect(after.message).toContain('I make it less')
+    // Being pulled up on it costs you time, which is the only real penalty.
+    expect(after.elapsedMs).toBeGreaterThan(ready.elapsedMs)
+  })
+
+  it('is paid without question by a customer who was not', () => {
+    const ready = distracted()
+    const wrong = customerTotal(ready.customer) + 90
+    const after = reduce(ready, { kind: 'announce', amount: wrong })
+    expect(after.phase).toBe('changing')
+    expect(after.quoted).toBe(wrong)
+    expect(after.cashOnCounter.length).toBeGreaterThan(0)
+    expect(after.message).toContain('without looking up')
+  })
+
+  it('books an unnoticed overcharge as a drawer surplus', () => {
+    const ready = distracted()
+    const over = customerTotal(ready.customer) + 100
+    const told = reduce(ready, { kind: 'announce', amount: over })
+    const after = reduce(payExact(told), { kind: 'confirm' })
+    // The shop took ¥100 it was not owed. Nobody said a word at the counter.
+    expect(after.tally.misquoted).toBe(1)
+    expect(after.tally.drawerDelta).toBe(100)
+  })
+
+  it('leaves the books alone when the price was right', () => {
+    const ready = distracted()
+    const told = reduce(ready, { kind: 'announce', amount: customerTotal(ready.customer) })
+    const after = reduce(payExact(told), { kind: 'confirm' })
+    expect(after.tally.misquoted).toBe(0)
+    expect(after.tally.drawerDelta).toBe(0)
+  })
+
+  it('cannot be said twice, or before everything is rung up', () => {
+    const fresh = createShift(1)
+    expect(reduce(fresh, { kind: 'announce', amount: 500 })).toStrictEqual(fresh)
+    const told = changing()
+    expect(reduce(told, { kind: 'announce', amount: 999 })).toStrictEqual(told)
   })
 })

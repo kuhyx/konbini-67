@@ -60,3 +60,21 @@ export const clockAt = (elapsedMs: number, startMinutes = SHIFT_START_MINUTES): 
  */
 export const shiftEndsAt = (durationMs: number, startMinutes = SHIFT_START_MINUTES): number =>
   clockAt(durationMs, startMinutes)
+
+/**
+ * Where the hands point, in degrees clockwise from twelve.
+ *
+ * The hour hand creeps between the numerals as the minutes pass, exactly as a
+ * real one does — which is what makes an analog face something you read rather
+ * than something you glance at. There is no digital readout anywhere near it
+ * on purpose: working out that the hands mean "twenty past ten" is the task.
+ */
+export const handAngles = (minutes: number): { readonly hour: number; readonly minute: number } => {
+  const wrapped = ((minutes % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY
+  const intoHour = wrapped % 60
+  return {
+    // 30° per hour, plus the fraction of the current hour already gone.
+    hour: ((wrapped / 60) % 12) * 30,
+    minute: intoHour * 6,
+  }
+}

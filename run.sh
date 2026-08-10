@@ -36,17 +36,19 @@ ensure_deps() {
     fi
 }
 
-# Waits for the preview server to accept connections, without needing curl.
+# Waits for the preview server to serve the page. Probes the same URL we hand
+# the user, so it works whichever address family vite binds (it picks IPv6-only
+# by default, which an IPv4 socket probe can never see).
 wait_for_port() {
     local attempts=0
     while ((attempts < 100)); do
-        if (echo >"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
+        if curl -sf -o /dev/null "http://localhost:$PORT/"; then
             return 0
         fi
         sleep 0.1
         ((attempts += 1))
     done
-    echo "Error: preview server did not come up on port $PORT" >&2
+    echo "Error: preview server did not come up on http://localhost:$PORT" >&2
     return 1
 }
 
@@ -57,8 +59,11 @@ play() {
     npm run preview -- --port "$PORT" --strictPort &
     PREVIEW_PID=$!
     wait_for_port
+    # Fully detached: with no browser already running, xdg-open stays attached to
+    # the one it spawns, which would block the script here forever. setsid puts it
+    # in its own session so nothing lingers under us when the script exits.
     if command -v xdg-open >/dev/null 2>&1; then
-        xdg-open "http://localhost:$PORT" >/dev/null 2>&1 || true
+        setsid xdg-open "http://localhost:$PORT" >/dev/null 2>&1 &
     fi
     log "serving — Ctrl-C to stop"
     wait "$PREVIEW_PID"

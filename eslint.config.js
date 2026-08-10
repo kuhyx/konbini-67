@@ -31,6 +31,12 @@ export default defineConfig(
       },
     },
     rules: {
+      // `unicorn/name-replacements` and `@eslint-react`'s ref-name rule are
+      // mutually unsatisfiable for any `useRef` variable: the first rejects
+      // `ref`/`Ref` as an abbreviation, the second requires that exact suffix.
+      // Both arrive from presets, so neither was a deliberate choice. Refs get
+      // their conventional React name; every other abbreviation stays banned.
+      'unicorn/name-replacements': ['error', { replacements: { ref: false } }],
       '@typescript-eslint/explicit-function-return-type': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-shadow': 'error',

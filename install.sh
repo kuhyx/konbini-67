@@ -31,6 +31,9 @@ main() {
 
     ensure_pacman_pkg node nodejs
     ensure_pacman_pkg npm npm
+    # run.sh probes the preview server over HTTP; bash's /dev/tcp only resolves
+    # the first getaddrinfo result and misses vite's IPv6-only bind.
+    ensure_pacman_pkg curl curl
 
     if [[ -f package-lock.json ]]; then
         log "npm ci"

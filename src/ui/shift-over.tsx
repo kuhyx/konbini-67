@@ -1,19 +1,14 @@
 import type { JSX } from 'react'
 import { formatYen } from '../core/money'
 import { gradeForShift } from '../core/score'
-import type { Reconciliation } from '../core/reconcile'
 import type { ShiftTally } from '../core/types'
 
 export interface ShiftOverProperties {
   readonly tally: ShiftTally
-  /**
-   * How the books came out, once the till has been cashed up.
-   */
-  readonly books: Reconciliation
   readonly onRestart: () => void
 }
 
-export const ShiftOver = ({ tally, books, onRestart }: ShiftOverProperties): JSX.Element => (
+export const ShiftOver = ({ tally, onRestart }: ShiftOverProperties): JSX.Element => (
   <div className="over">
     <p className="grade">{gradeForShift(tally.score, tally.served)}</p>
     <h2>Shift over</h2>
@@ -43,16 +38,12 @@ export const ShiftOver = ({ tally, books, onRestart }: ShiftOverProperties): JSX
         <span>{tally.lookupsUsed}</span>
       </li>
       <li>
+        <span>Wrong price said</span>
+        <span>{tally.misquoted}</span>
+      </li>
+      <li>
         <span>Drawer off by</span>
-        <span>{formatYen(books.actual)}</span>
-      </li>
-      <li>
-        <span>You declared</span>
-        <span>{formatYen(books.declared)}</span>
-      </li>
-      <li>
-        <span>Books</span>
-        <span>{books.isBalanced ? 'Balanced' : `Out by ${formatYen(books.error)}`}</span>
+        <span>{formatYen(tally.drawerDelta)}</span>
       </li>
       <li>
         <span>Score</span>

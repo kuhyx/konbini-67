@@ -1,35 +1,50 @@
 import type { JSX } from 'react'
-import { clockAt, formatClock } from '../core/wallclock'
+import { clockAt, handAngles } from '../core/wallclock'
 
 export interface WallClockProperties {
   readonly elapsedMs: number
-  readonly endsAt: number
-  /**
-   * Whether the player is currently looking up at it.
-   *
-   * A clock on the wall is not in your field of view while you are working the
-   * counter, so the face is only legible when you look — otherwise this is a
-   * countdown in a different font, which is the thing being removed.
-   */
-  readonly isLookingUp: boolean
 }
 
 /**
- * The digital clock on the wall above the counter.
- *
- * Shows the time of day and nothing else. There is deliberately no "time
- * remaining": you are told once when the shift ends, and working out how long
- * that leaves is your job, exactly as it is behind a real counter.
+ * Twelve marks around the face. Only the quarters get a long tick, which is
+ * what makes the in-between positions something you judge.
  */
-export const WallClock = ({
-  elapsedMs,
-  endsAt,
-  isLookingUp,
-}: WallClockProperties): JSX.Element => (
-  <div className={isLookingUp ? 'wallclock looking' : 'wallclock'}>
-    <span className="face" aria-label={isLookingUp ? 'Wall clock' : 'Wall clock, not in view'}>
-      {isLookingUp ? formatClock(clockAt(elapsedMs)) : '· ·'}
-    </span>
-    {isLookingUp ? <small>off at {formatClock(endsAt)}</small> : undefined}
-  </div>
-)
+const MARKS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+
+/**
+ * The analog clock on the wall.
+ *
+ * Hands and nothing else — no digits anywhere on it. Reading an analog face is
+ * a small act of work, and doing that under time pressure is the mechanic; a
+ * digital readout would just be the countdown again in a different font.
+ *
+ * It only renders while the player is actually looking at it, so it cannot be
+ * consulted for free out of the corner of an eye.
+ */
+export const WallClock = ({ elapsedMs }: WallClockProperties): JSX.Element => {
+  const angles = handAngles(clockAt(elapsedMs))
+  return (
+    <div className="panel wallclock-panel">
+      <h2>The clock</h2>
+      <div className="clock-face" aria-label="Wall clock">
+        {MARKS.map((mark) => (
+          <span
+            key={mark}
+            className={mark % 3 === 0 ? 'mark quarter' : 'mark'}
+            style={{ transform: `rotate(${String(mark * 30)}deg)` }}
+          />
+        ))}
+        <span
+          className="hand hour"
+          style={{ transform: `rotate(${String(angles.hour)}deg)` }}
+        />
+        <span
+          className="hand minute"
+          style={{ transform: `rotate(${String(angles.minute)}deg)` }}
+        />
+        <span className="pin" />
+      </div>
+      <p className="hint">You clock off at eleven.</p>
+    </div>
+  )
+}

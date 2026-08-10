@@ -6,6 +6,11 @@ import {
   isOnLaser,
   LASER_TOLERANCE,
   LASER_X,
+  CUSTOMER_X,
+  isOverTill,
+  isWithCustomer,
+  TILL_Y,
+  toUnit,
   pickAt,
   type Placed,
   scatter,
@@ -140,5 +145,37 @@ describe('distance', () => {
   it('is zero for the same point and positive otherwise', () => {
     expect(distance({ x: 0.3, y: 0.3 }, { x: 0.3, y: 0.3 })).toBe(0)
     expect(distance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5)
+  })
+})
+
+describe('toUnit', () => {
+  const box = { left: 100, top: 50, width: 1000, height: 400 }
+
+  it('maps a screen point onto the counter', () => {
+    expect(toUnit(box, 600, 250)).toStrictEqual({ x: 0.5, y: 0.5 })
+  })
+
+  it('clamps a drag that leaves the counter to its edge', () => {
+    // Dragged well off to the left and above: the piece stops at the corner
+    // rather than ending up somewhere in negative space.
+    expect(toUnit(box, -500, -500)).toStrictEqual({ x: 0, y: 0 })
+    expect(toUnit(box, 5000, 5000)).toStrictEqual({ x: 1, y: 1 })
+  })
+
+  it('reads an unlaid-out element as the origin rather than dividing by zero', () => {
+    const flat = { left: 0, top: 0, width: 0, height: 0 }
+    expect(toUnit(flat, 42, 42)).toStrictEqual({ x: 0, y: 0 })
+  })
+})
+
+describe('sides of the counter', () => {
+  it('knows what has reached the customer', () => {
+    expect(isWithCustomer({ x: CUSTOMER_X, y: 0.5 })).toBe(true)
+    expect(isWithCustomer({ x: CUSTOMER_X - 0.01, y: 0.5 })).toBe(false)
+  })
+
+  it('knows what has been dropped back in the drawer', () => {
+    expect(isOverTill({ x: 0.3, y: TILL_Y })).toBe(true)
+    expect(isOverTill({ x: 0.3, y: TILL_Y - 0.01 })).toBe(false)
   })
 })

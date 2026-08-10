@@ -2,25 +2,16 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { EMPTY_TALLY } from '../core/types'
-import { reconcile } from '../core/reconcile'
 import { ShiftOver } from './shift-over'
-
-/**
- * A till that cashed up correctly, which is the uninteresting case for most
- * of these tests — the books themselves are covered in books.test.tsx.
- */
-const BALANCED = reconcile(0, 0)
 
 describe('ShiftOver', () => {
   it('grades an unworked shift as D', () => {
-    render(<ShiftOver tally={EMPTY_TALLY} books={BALANCED} onRestart={vi.fn()} />)
+    render(<ShiftOver tally={EMPTY_TALLY} onRestart={vi.fn()} />)
     expect(screen.getByText('D')).toBeInTheDocument()
   })
 
   it('grades a strong shift as S', () => {
-    render(
-      <ShiftOver tally={{ ...EMPTY_TALLY, served: 10, score: 1500 }} books={BALANCED} onRestart={vi.fn()} />,
-    )
+    render(<ShiftOver tally={{ ...EMPTY_TALLY, served: 10, score: 1500 }} onRestart={vi.fn()} />)
     expect(screen.getByText('S')).toBeInTheDocument()
   })
 
@@ -37,27 +28,25 @@ describe('ShiftOver', () => {
           drawerDelta: -120,
           score: 400,
         }}
-        books={reconcile(-120, -120)}
         onRestart={vi.fn()}
       />,
     )
     expect(screen.getByText('Served')).toBeInTheDocument()
     expect(screen.getByText('Lookups used')).toBeInTheDocument()
-    // "Drawer off by" now comes from the cash-up, not the running tally.
-    expect(screen.getAllByText('-¥120')).not.toHaveLength(0)
-    expect(screen.getByText('Balanced')).toBeInTheDocument()
+    expect(screen.getByText('-¥120')).toBeInTheDocument()
   })
 
-  it('says how far the books were out when the count was wrong', () => {
-    render(
-      <ShiftOver tally={EMPTY_TALLY} books={reconcile(0, -50)} onRestart={vi.fn()} />,
-    )
-    expect(screen.getByText(/Out by/)).toBeInTheDocument()
+  it('counts the prices you said wrong and nobody queried', () => {
+    // The quiet mistakes: they cost the shop money and never announced
+    // themselves at the counter, so this is where you meet them.
+    render(<ShiftOver tally={{ ...EMPTY_TALLY, served: 5, misquoted: 2 }} onRestart={vi.fn()} />)
+    expect(screen.getByText('Wrong price said')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
   })
 
   it('starts another shift on request', async () => {
     const onRestart = vi.fn()
-    render(<ShiftOver tally={EMPTY_TALLY} books={BALANCED} onRestart={onRestart} />)
+    render(<ShiftOver tally={EMPTY_TALLY} onRestart={onRestart} />)
     await userEvent.click(screen.getByRole('button', { name: 'Another shift' }))
     expect(onRestart).toHaveBeenCalledTimes(1)
   })

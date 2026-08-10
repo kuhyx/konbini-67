@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { CIGARETTES } from './catalog'
-import { basketTotal, customerTotal, makeCustomer, makeTender, nameForId, tenderValue } from './customer'
-import { purseValue } from './money'
+import {
+  basketTotal,
+  coveringNote,
+  customerTotal,
+  makeCustomer,
+  makeTender,
+  nameForId,
+  tenderValue,
+} from './customer'
+import { optimalCount, purseCount, purseValue } from './money'
 import { createRng } from './rng'
 import { type ShelfSpec, shelfSpecForShift } from './shelf'
 import type { CigaretteRequest, Customer } from './types'
@@ -79,20 +87,37 @@ describe('makeTender', () => {
     expect(makeTender(createRng(1), 6000)[10_000]).toBe(1)
   })
 
-  it('sometimes adds loose coins and sometimes does not', () => {
-    let withCoins = 0
-    let withoutCoins = 0
-    for (let seed = 0; seed < 60; seed += 1) {
-      const purse = makeTender(createRng(seed), 500)
-      if (purseValue(purse) > 1000) {
-        withCoins += 1
-      } else {
-        withoutCoins += 1
-      }
+  it('digs out coins that round the change, not coins that do nothing', () => {
+    // ¥1,202 with a ¥5,000 note: a real person adds the ¥2, because it turns
+    // ¥3,798 of shrapnel into ¥3,800. Handing over an extra ¥100 on top of a
+    // note that already covers it — which the old scatter did — is something
+    // nobody has ever done at a till.
+    const purse = makeTender(createRng(1), 1202, 'scatter')
+    expect(purse[5000]).toBe(1)
+    expect(purse[1]).toBe(2)
+    const change = purseValue(purse) - 1202
+    expect(change % 100).toBe(0)
+  })
+
+  it('adds nothing extra when the price is already round', () => {
+    const purse = makeTender(createRng(1), 500, 'scatter')
+    // Nothing below ¥100 to round off, so the note goes over on its own.
+    expect(purseValue(purse)).toBe(1000)
+  })
+
+  it('never digs out more coins than the change it saves', () => {
+    // The real-life test is not "is the change round", it is "did handing
+    // these coins over leave fewer pieces on the counter in total". Paying
+    // ¥2,167 with a ¥5,000 note plus ¥67 in five coins to avoid receiving ¥33
+    // in four is a trade nobody makes. Exhaustive, because the failure was
+    // invisible at the one total the earlier test happened to pick.
+    for (let total = 1; total < 10_000; total += 1) {
+      const purse = makeTender(createRng(total), total, 'scatter')
+      const handed = purseCount(purse)
+      const returned = optimalCount(purseValue(purse) - total)
+      const bare = 1 + optimalCount(coveringNote(total) - total)
+      expect(handed + returned).toBeLessThanOrEqual(bare)
     }
-    // Both branches must actually occur, or the coin path is untested.
-    expect(withCoins).toBeGreaterThan(0)
-    expect(withoutCoins).toBeGreaterThan(0)
   })
 })
 

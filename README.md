@@ -58,20 +58,24 @@ strict-type-checked, @eslint-react, unicorn and sonarjs.
 
 ## Status
 
-M0 is built, plus the eight-item physicality pass that came out of playing it
-(`SPEC-physicality.md`): the shift clock is a wall clock you look up at, the
-cigarette shelf is behind you, the till holds a finite amount of money you can
-run out of, beer and tobacco need an ID check you have to make the call on,
-the books get cashed up at the end, and items are swept over the scanner beam
-across a counter with the customer's money loose on it. Nothing totals
-anything for you. `npm run check` clean at 100% coverage. It is not signed off yet: M0's
-done-condition also requires actually playing three shifts and judging whether
-the pressure is fun or feels like homework, and that cannot be automated.
+M0 is built, plus the physicality pass that came out of playing it — three
+rounds of it now (`SPEC-physicality.md`): the shift clock is an analog wall
+clock you read the hands on, the cigarette shelf is behind you, the till holds
+a finite amount of money you can run out of, beer and tobacco need an ID check
+you have to make the call on, you type the price yourself and can mistype it,
+and items are dragged over the scanner beam across a counter with the
+customer's money loose on it. Nothing totals anything for you, and there is no
+scoreboard. `npm run check` clean at 100% coverage. It is not signed off yet:
+M0's done-condition also requires actually playing three shifts and judging
+whether the pressure is fun or feels like homework, and that cannot be
+automated.
 
-Still to come — queue and
-patience (M1), age verification and the escalating rule stack (M2), cooking
-(M3), payment methods (M4), a finite till that breaks greedy change and needs
-bounded-coin DP (M5), and regulars, restocking and shoplifters (M6).
+Age verification (M2) and the finite till that breaks greedy change (M5) were
+pulled forward into that pass and are built. Still to come — queue and patience
+(M1), cooking (M3), payment methods (M4), and regulars, restocking and
+shoplifters (M6). The features most obviously missing — stocking shelves, angry
+customers, hot food and cleaning — are specified as milestones under "The
+roadmap" in `SPEC-physicality.md`.
 
 Currency is JPY on purpose: yen has no sub-unit, so every amount is a plain
 integer and the whole float-rounding bug class is designed out of the scoring

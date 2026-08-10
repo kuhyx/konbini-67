@@ -2,6 +2,9 @@ import type { JSX } from 'react'
 import { type Denom, DENOMS, formatYen, type Purse } from '../core/money'
 
 export interface TillProperties {
+  /**
+   * Change counted out so far, waiting in your hand.
+   */
   readonly tray: Purse
   /**
    * What is left in the drawer. A denomination you are out of cannot be
@@ -14,12 +17,16 @@ export interface TillProperties {
 }
 
 /**
- * The till tray.
+ * The till drawer.
  *
- * Change is built by clicking denominations, not typed into a box. Clicking
- * is what a clerk physically does, and it exposes the efficiency axis a text
- * field cannot: typing "350" says nothing about whether you would have handed
- * over 3x100+1x50 or 35x10.
+ * Counting change out is clicking compartments, not dragging coins. Dragging
+ * was tried and reverted: picking a denomination is a *decision* about which
+ * pieces make the amount, and the interesting part is the arithmetic, not the
+ * hand-eye work of sliding thirty coins across a counter one at a time.
+ *
+ * The customer's own money stays physical, though — that is a different act.
+ * Counting what they gave you means looking at a scattered pile and reading
+ * it, which no amount of clicking would reproduce.
  */
 export const Till = ({
   tray,
@@ -28,17 +35,15 @@ export const Till = ({
   onGive,
   onTakeBack,
 }: TillProperties): JSX.Element => (
-  <div className="panel">
-    <h2>Till — click to count out</h2>
-    <div className="tray">
-      {DENOMS.map((denom) => {
-        const held = tray[denom]
-        const left = drawer[denom]
-        return (
+  <div className="till">
+    {DENOMS.map((denom) => {
+      const held = tray[denom]
+      const left = drawer[denom]
+      return (
+        <div key={denom} className="till-column">
           <button
-            key={denom}
             type="button"
-            className={held > 0 ? 'denom has' : 'denom'}
+            className={held > 0 ? 'till-slot has' : 'till-slot'}
             disabled={!enabled || left === 0}
             aria-label={
               left === 0 ? `${formatYen(denom)} — none left` : `Give ${formatYen(denom)}`
@@ -47,33 +52,25 @@ export const Till = ({
               onGive(denom)
             }}
           >
-            {formatYen(denom)}
+            <span className="face">{formatYen(denom)}</span>
             <span className="count">{held > 0 ? `×${String(held)}` : '·'}</span>
             <span className="left">{left}</span>
           </button>
-        )
-      })}
-    </div>
-    <p className="hint">
-      Count it out yourself — nothing here adds it up for you.
-    </p>
-    <div className="actions">
-      {DENOMS.map((denom) =>
-        tray[denom] > 0 ? (
-          <button
-            key={denom}
-            type="button"
-            className="ghost"
-            disabled={!enabled}
-            aria-label={`Take back ${formatYen(denom)}`}
-            onClick={() => {
-              onTakeBack(denom)
-            }}
-          >
-            −{formatYen(denom)}
-          </button>
-        ) : undefined,
-      )}
-    </div>
+          {held > 0 ? (
+            <button
+              type="button"
+              className="take-back"
+              disabled={!enabled}
+              aria-label={`Take back ${formatYen(denom)}`}
+              onClick={() => {
+                onTakeBack(denom)
+              }}
+            >
+              −
+            </button>
+          ) : undefined}
+        </div>
+      )
+    })}
   </div>
 )

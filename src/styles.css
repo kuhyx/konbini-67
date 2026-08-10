@@ -96,17 +96,67 @@ button:disabled {
   font-weight: 400;
 }
 
-.stats {
-  display: flex;
-  gap: var(--sp-lg);
-  font-family: var(--mono);
-  font-size: 13px;
+/* The wall clock, rendered only while you are looking up at it. Hands, no
+   digits: reading it is the job. */
+.clock-face {
+  position: relative;
+  width: 190px;
+  height: 190px;
+  margin: 0 auto var(--sp-sm);
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #f3ede0, #d9d2c2);
+  border: 6px solid #2f2a26;
+  box-shadow: inset 0 3px 10px rgb(0 0 0 / 22%);
 }
 
-.stat b {
-  display: block;
-  font-size: 20px;
-  font-weight: 700;
+.mark {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 2px;
+  height: 8px;
+  margin-left: -1px;
+  background: #7d766a;
+  transform-origin: 50% 87px;
+}
+
+.mark.quarter {
+  height: 14px;
+  width: 3px;
+  margin-left: -1.5px;
+  background: #2f2a26;
+}
+
+.hand {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  background: #23201c;
+  border-radius: 2px;
+  transform-origin: 50% 100%;
+}
+
+.hand.hour {
+  width: 6px;
+  height: 48px;
+  margin-left: -3px;
+}
+
+.hand.minute {
+  width: 4px;
+  height: 70px;
+  margin-left: -2px;
+}
+
+.pin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .grid {
@@ -147,79 +197,137 @@ button:disabled {
   color: var(--text-on-dark);
 }
 
-.receipt {
-  font-family: var(--mono);
-  font-size: 14px;
-  list-style: none;
-  margin: 0 0 var(--sp-md);
-  padding: 0;
-}
-
-.receipt li {
+/* The register display. The only number the game hands you: a real till does
+   the arithmetic for the total, and nothing else. */
+.register {
   display: flex;
-  justify-content: space-between;
-  gap: var(--sp-sm);
-  padding: 2px 0;
-  color: var(--muted-on-dark);
-}
-
-.receipt li.rung {
-  color: var(--text-on-dark);
-}
-
-.total {
-  display: flex;
+  align-items: baseline;
   justify-content: space-between;
   font-family: var(--mono);
-  font-size: 20px;
+  background: #10130f;
+  border: 1px solid #2c3329;
+  border-radius: var(--r-sm);
+  padding: var(--sp-sm) var(--sp-md);
+}
+
+.register-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #5f7a55;
+}
+
+.register-total {
+  font-size: 26px;
   font-weight: 700;
-  border-top: 1px solid var(--ink-raised-2);
-  padding-top: var(--sp-sm);
+  color: #86e06a;
+  text-shadow: 0 0 10px rgb(134 224 106 / 45%);
 }
 
-.tender {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--mono);
-  color: var(--muted-on-dark);
-  padding-top: var(--sp-xs);
-}
-
-/* The whole point: you work out the change yourself. */
-.owed-hidden {
-  color: var(--muted-on-dark);
-  font-family: var(--mono);
-  font-size: 13px;
-}
-
-.tray {
+/* The open drawer, below the counter. Pieces are pulled out of here and land
+   on the counter — this is a source, not a scoreboard. */
+.till {
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--sp-sm);
+  grid-template-columns: repeat(9, 1fr);
+  gap: var(--sp-xs);
+  align-items: start;
+  background: var(--ink-raised-1);
+  border-radius: var(--r-md);
+  padding: var(--sp-sm);
 }
 
-.denom {
+.till-column {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.till-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--sp-sm) 2px;
   font-family: var(--mono);
-  font-weight: 700;
   background: var(--ink-raised-2);
   border: 1px solid #443c38;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  width: 100%;
 }
 
-.denom .count {
-  display: block;
+.till-slot .count {
   font-size: 11px;
-  font-weight: 400;
   color: var(--muted-on-dark);
 }
 
-.denom.has {
+.till-slot.has {
   background: var(--accent);
   color: var(--on-fill);
   border-color: var(--accent);
 }
 
-.denom.has .count {
+.till-slot.has .count,
+.till-slot.has .left {
   color: var(--on-fill);
+}
+
+.take-back {
+  padding: 2px;
+  font-size: 14px;
+  line-height: 1;
+  background: var(--ink-raised-2);
+  border: 1px solid #443c38;
+  border-radius: var(--r-sm);
+  color: var(--muted-on-dark);
+  cursor: pointer;
+}
+
+/* Saying the price out loud. */
+.price-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-xs);
+}
+
+.price-entry label {
+  font-size: 13px;
+  color: var(--muted-on-dark);
+  margin-right: var(--sp-xs);
+}
+
+.price-entry .yen-sign {
+  font-family: var(--mono);
+  font-size: 18px;
+  color: var(--muted-on-dark);
+}
+
+.price-entry input {
+  width: 7ch;
+  padding: var(--sp-sm);
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: right;
+  background: #10130f;
+  color: #86e06a;
+  border: 1px solid #2c3329;
+  border-radius: var(--r-sm);
+}
+
+.till-slot .face {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.till-slot .left {
+  font-size: 11px;
+  color: var(--muted-on-dark);
+}
+
+.till-slot.empty {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .shelf {
@@ -347,20 +455,36 @@ button:disabled {
 .cash {
   position: absolute;
   translate: -50% -50%;
-  transition: left 120ms ease-out;
+  /* No transition on a held piece: it must track the cursor exactly, or the
+     drag feels like it is dragging something on elastic. */
+  user-select: none;
 }
 
 .good {
-  font-size: 1.9rem;
+  /* Per-item size comes from the catalog as `--thing-size`, a multiplier on the
+     base draw size. It sizes the glyph rather than transform-scaling the box,
+     because the box is centred with the standalone `translate` property and a
+     `transform: scale()` would compose against that instead of resizing the
+     thing. Falls back to 1 for any piece rendered without a size. */
+  font-size: calc(1.9rem * var(--thing-size, 1));
   line-height: 1;
   padding: var(--sp-xs);
   background: none;
   border: none;
-  cursor: pointer;
+  cursor: grab;
 }
 
 .good:hover {
   filter: brightness(1.3);
+}
+
+/* Whatever is currently in your hand: lifted off the counter, and above
+   everything else so it is never hidden under the pile it came from. */
+.held {
+  cursor: grabbing;
+  z-index: 5;
+  filter: brightness(1.35) drop-shadow(0 6px 8px rgb(0 0 0 / 45%));
+  scale: 1.12;
 }
 
 .cash {
@@ -370,6 +494,36 @@ button:disabled {
   border-radius: 3px;
   pointer-events: none;
   white-space: nowrap;
+}
+
+/* Change you have counted out is yours to move; the customer's own money is
+   not, so only this half responds to the mouse. */
+.cash.change {
+  pointer-events: auto;
+  cursor: grab;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Their side of the counter. Change dropped past this line has been handed
+   over; anything short of it is still sitting in front of you. */
+.customer-side {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  border-left: 1px dashed rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 2.5%);
+  pointer-events: none;
+}
+
+.customer-side span {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted-on-dark);
 }
 
 .cash.note {
