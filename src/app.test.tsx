@@ -3,7 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from './app'
 import { createManualClock } from './core/clock'
-import { SHIFT_MS } from './core/shift'
+import { createShift, SHIFT_MS } from './core/shift'
+import { FULL_SHELF } from './core/stock'
+import { ITEMS } from './core/catalog'
 import { EMPTY_PURSE, type Purse } from './core/money'
 import { asSurface, dragOn } from './test/drag'
 import { installRaf } from './test/harness'
@@ -389,5 +391,51 @@ describe('App', () => {
     // Using it costs you: the shelf freezes for a moment, which is the whole
     // price of looking something up mid-sale.
     expect(screen.getByText(/Checking the chart/)).toBeInTheDocument()
+  })
+})
+
+describe('stock and the stockroom', () => {
+  it('lets you put more out, and charges you the time for it', async () => {
+    installRaf()
+    render(<App stock={{ ...FULL_SHELF, melonpan: 0 }} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /Go out back/i }))
+    expect(screen.getByText(/Out back/)).toBeInTheDocument()
+
+    // The empty shelf is the one crate worth putting out, and it sorts first.
+    await userEvent.click(screen.getByText(ITEMS.melonpan.label))
+    expect(screen.getByText(/Putting out melonpan/)).toBeInTheDocument()
+  })
+
+  it('disables every crate when the shop is fully stocked', async () => {
+    installRaf()
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: /Go out back/i }))
+    const crates = document.querySelectorAll<HTMLButtonElement>('.crate')
+    expect(crates.length).toBeGreaterThan(0)
+    expect([...crates].every((crate) => crate.disabled)).toBe(true)
+  })
+
+  it('does not offer to send anyone away while the shop is stocked', () => {
+    installRaf()
+    render(<App />)
+    expect(screen.queryByRole('button', { name: /send them away/i })).not.toBeInTheDocument()
+  })
+
+  it('sends away a customer whose basket it cannot fill', async () => {
+    installRaf()
+    // Empty the shelf the first customer is actually shopping from, which is
+    // the only way the control appears.
+    const first = createShift(1)
+    const [line] = first.customer.basket
+    if (line === undefined) {
+      throw new Error('seed 1 customer should have a basket')
+    }
+    render(<App stock={{ ...FULL_SHELF, [line.item]: 0 }} />)
+
+    const away = screen.getByRole('button', { name: /send them away/i })
+    await userEvent.click(away)
+    // They leave with nothing, and the next customer steps up.
+    expect(screen.getByText(/we’re out of/)).toBeInTheDocument()
   })
 })

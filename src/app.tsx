@@ -1,22 +1,17 @@
 import { useCallback, useMemo, useReducer, useState, type JSX } from 'react'
-import { STORE_NAME } from './core/catalog'
+import { type ItemId, STORE_NAME } from './core/catalog'
 import { type Clock, realClock } from './core/clock'
 import { requiresIdCheck } from './core/id-check'
 import type { Point } from './core/layout'
 import { canMakeChange, type Denom, purseCount, type Purse } from './core/money'
-import { changeOwed, createShift, reduce } from './core/shift'
-import {
-  GAZE,
-  GAZE_ORDER,
-  type Gaze,
-  type Resolution,
-  RESOLUTION_ORDER,
-  RESOLUTIONS,
-} from './core/types'
+import { changeOwed, createShift, missingFromBasket, reduce } from './core/shift'
+import type { Stock } from './core/stock'
+import { GAZE, type Gaze, type Resolution } from './core/types'
 import { Counter } from './ui/counter'
 import { CounterTop } from './ui/counter-top'
-import { PriceEntry } from './ui/price-entry'
+import { ActionBar } from './ui/action-bar'
 import { Shelf } from './ui/shelf'
+import { Stockroom } from './ui/stockroom'
 import { ShiftOver } from './ui/shift-over'
 import { createSpeaker, type Speaker } from './ui/sound'
 import { useSoundCues } from './ui/use-sound-cues'
@@ -44,12 +39,25 @@ export interface AppProperties {
    * injected rather than reached for.
    */
   readonly speaker?: Speaker
+  /**
+   * Opening shelf stock. Injectable for the same reason as `float`: an empty
+   * shelf is otherwise reachable only by selling six of something first.
+   */
+  readonly stock?: Stock
 }
 
-export const App = ({ clock = realClock, float, speaker }: AppProperties = {}): JSX.Element => {
+export const App = ({
+  clock = realClock,
+  float,
+  speaker,
+  stock,
+}: AppProperties = {}): JSX.Element => {
   const [seed, setSeed] = useState(FIRST_SEED)
   const [shiftNo, setShiftNo] = useState(1)
-  const [state, dispatch] = useReducer(reduce, createShift(FIRST_SEED, 1, float))
+  const [state, dispatch] = useReducer(reduce, {
+    ...createShift(FIRST_SEED, 1, float),
+    ...(stock && { stock }),
+  })
 
   // One speaker for the life of the page. Built lazily so a test that passes
   // its own is never near a real `Audio` element.
@@ -103,6 +111,18 @@ export const App = ({ clock = realClock, float, speaker }: AppProperties = {}): 
   const refuseSale = useCallback(() => {
     dispatch({ kind: 'refuse-sale' })
   }, [])
+  const doRestock = useCallback((item: ItemId) => {
+    dispatch({ kind: 'restock', item })
+  }, [])
+  const turnAway = useCallback(() => {
+    dispatch({ kind: 'turn-away' })
+  }, [])
+  const confirm = useCallback(() => {
+    dispatch({ kind: 'confirm' })
+  }, [])
+  const useLookup = useCallback(() => {
+    dispatch({ kind: 'use-lookup' })
+  }, [])
 
   if (state.phase === 'closed') {
     return (
@@ -123,6 +143,12 @@ export const App = ({ clock = realClock, float, speaker }: AppProperties = {}): 
   // this particular customer needs asking is the player's call, not the
   // register's.
   const isRestricted = requiresIdCheck(state.customer)
+  // Restocking is a thing you do instead of serving, so it is only offered
+  // when nobody is mid-transaction and the clock is not already frozen.
+  const canRestock = state.phase === 'scanning' && state.elapsedMs >= state.frozenUntilMs
+  // What this customer wants that the shop has not got. Non-empty means the
+  // sale cannot be completed however well the arithmetic goes.
+  const missing = missingFromBasket(state)
   const canSeeCustomer = GAZE[state.gaze].canSeeCustomer
 
   return (
@@ -176,70 +202,28 @@ export const App = ({ clock = realClock, float, speaker }: AppProperties = {}): 
           <Shelf mode={state.shelf.mode} enabled={isShelf} lookupOpen={false} onPick={pick} />
         ) : undefined}
         {isLookingUp ? <WallClock elapsedMs={state.elapsedMs} /> : undefined}
+        {state.gaze === 'stockroom' ? (
+          <Stockroom stock={state.stock} enabled={canRestock} onRestock={doRestock} />
+        ) : undefined}
       </div>
 
-      <div className="actions">
-        {isAnnouncing ? <PriceEntry onAnnounce={announce} /> : undefined}
-        {isAnnouncing ? undefined : (
-          <button
-            type="button"
-            className="primary"
-            disabled={!isChanging}
-            onClick={() => {
-              dispatch({ kind: 'confirm' })
-            }}
-          >
-            That&rsquo;s everything
-          </button>
-        )}
-        {isShelf && state.shelf.mode !== 'labelled' ? (
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => {
-              dispatch({ kind: 'use-lookup' })
-            }}
-          >
-            Check the chart (−{state.shelf.lookupPenalty})
-          </button>
-        ) : undefined}
-        {isRestricted && state.idShown === undefined ? (
-          <button type="button" className="ghost" onClick={askId}>
-            Ask for ID
-          </button>
-        ) : undefined}
-        <button type="button" className="ghost" onClick={refuseSale}>
-          Refuse the sale
-        </button>
-        {isStuck
-          ? RESOLUTION_ORDER.map((how) => (
-              <button
-                key={how}
-                type="button"
-                className="ghost"
-                onClick={() => {
-                  resolve(how)
-                }}
-              >
-                {RESOLUTIONS[how].label}
-              </button>
-            ))
-          : undefined}
-        {GAZE_ORDER.map((at) =>
-          at === state.gaze ? undefined : (
-            <button
-              key={at}
-              type="button"
-              className="ghost"
-              onClick={() => {
-                look(at)
-              }}
-            >
-              {GAZE[at].label}
-            </button>
-          ),
-        )}
-      </div>
+      <ActionBar
+        phase={state.phase}
+        gaze={state.gaze}
+        shelfMode={state.shelf.mode}
+        lookupPenalty={state.shelf.lookupPenalty}
+        canAskId={isRestricted && state.idShown === undefined}
+        isStuck={isStuck}
+        isUnfillable={missing.length > 0}
+        onAnnounce={announce}
+        onConfirm={confirm}
+        onLookup={useLookup}
+        onAskId={askId}
+        onRefuse={refuseSale}
+        onTurnAway={turnAway}
+        onResolve={resolve}
+        onLook={look}
+      />
     </div>
   )
 }

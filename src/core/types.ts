@@ -126,9 +126,14 @@ export const PHASE_ORDER = ['scanning', 'shelf', 'announcing', 'changing', 'clos
  * the customer — and independent flags would multiply against `Phase` into a
  * branch space that cannot be covered without exclusions.
  */
-export type Gaze = 'counter' | 'shelf' | 'clock'
+export type Gaze = 'counter' | 'shelf' | 'clock' | 'stockroom'
 
-export const GAZE_ORDER = ['counter', 'shelf', 'clock'] as const satisfies readonly Gaze[]
+export const GAZE_ORDER = [
+  'counter',
+  'shelf',
+  'clock',
+  'stockroom',
+] as const satisfies readonly Gaze[]
 
 /**
  * What looking somewhere costs you.
@@ -151,6 +156,7 @@ export const GAZE: Record<Gaze, GazeSpec> = {
   counter: { canSeeCustomer: true, label: 'Back to the counter' },
   shelf: { canSeeCustomer: false, label: 'Turn to the shelf' },
   clock: { canSeeCustomer: false, label: 'Look at the clock' },
+  stockroom: { canSeeCustomer: false, label: 'Go out back' },
 }
 
 /**
@@ -261,6 +267,18 @@ export type ShiftEvent =
   | { readonly kind: 'resolve'; readonly how: Resolution }
   | { readonly kind: 'ask-id' }
   | { readonly kind: 'refuse-sale' }
+  /**
+   * Put more of one item out. Costs time you are not at the till.
+   */
+  | { readonly kind: 'restock'; readonly item: ItemId }
+  /**
+   * Send away a customer whose basket the shop cannot fill.
+   *
+   * Distinct from `refuse-sale`, which is the age-check refusal: this one is
+   * the shop's own fault, and it is scored as a lost sale rather than a
+   * judgement call.
+   */
+  | { readonly kind: 'turn-away' }
   | { readonly kind: 'tick'; readonly deltaMs: number }
   | { readonly kind: 'restart'; readonly seed: number; readonly shift: number }
 
@@ -277,6 +295,8 @@ export const EVENT_KIND_ORDER = [
   'resolve',
   'ask-id',
   'refuse-sale',
+  'restock',
+  'turn-away',
   'tick',
   'restart',
 ] as const
@@ -296,6 +316,16 @@ export interface ShiftTally {
    * and the customer did not pull you up on it.
    */
   readonly misquoted: number
+  /**
+   * Sales lost because the shelf was empty when someone wanted the thing.
+   *
+   * Housekeeping you did not do, measured in customers who walked.
+   */
+  readonly lostSales: number
+  /**
+   * Trips out back to put more stock on the shelf.
+   */
+  readonly restocked: number
   readonly score: number
   /**
    * Net yen the drawer is off by. Negative means you shorted yourself.
@@ -311,6 +341,8 @@ export const EMPTY_TALLY: ShiftTally = {
   lookupsUsed: 0,
   sloppyChange: 0,
   misquoted: 0,
+  lostSales: 0,
+  restocked: 0,
   score: 0,
   drawerDelta: 0,
 }

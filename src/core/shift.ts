@@ -10,7 +10,13 @@
  * which keeps every branch individually reachable from a test.
  */
 
-import { CIGARETTES, type CounterThing, SLOT_TO_CIGARETTE } from './catalog'
+import {
+  CIGARETTES,
+  type CounterThing,
+  ITEMS,
+  type ItemId,
+  SLOT_TO_CIGARETTE,
+} from './catalog'
 import { customerTotal, makeCustomer, tenderFor } from './customer'
 import {
   addDenom,
@@ -37,6 +43,15 @@ import { didCrossLaser, type Placed, type Point, scatter } from './layout'
 import { createRng, nextFloat, type Rng } from './rng'
 import { type ChangeGrade, gradeChange, parMs, speedPoints } from './score'
 import { type ShelfSpec, shelfSpecForShift } from './shelf'
+import {
+  FULL_SHELF,
+  outOfStockIn,
+  restock,
+  RESTOCK_MS,
+  SHELF_CAPACITY,
+  type Stock,
+  takeFromShelf,
+} from './stock'
 import {
   EMPTY_TALLY,
   type Customer,
@@ -141,6 +156,13 @@ export interface ShiftState {
    */
   readonly frozenUntilMs: number
   readonly tally: ShiftTally
+  /**
+   * What is left on the shelves.
+   *
+   * Depletes as you sell and refills only when you walk out back, which is
+   * what gives the gaps between customers a cost.
+   */
+  readonly stock: Stock
   /**
    * Most recent feedback line, for the UI.
    */
@@ -247,6 +269,7 @@ export const createShift = (seed: number, shift = 1, float: Purse = OPENING_FLOA
     customerStartMs: 0,
     frozenUntilMs: 0,
     tally: EMPTY_TALLY,
+    stock: FULL_SHELF,
     message: 'Ring up the items.',
   }
 }
@@ -494,6 +517,29 @@ const onLook = (state: ShiftState, at: Gaze): ShiftState => {
   return { ...state, gaze: at }
 }
 
+/**
+ * Puts more of one item on the shelf.
+ *
+ * Only out back, and only while nobody is mid-transaction: walking off to the
+ * stockroom holding a customer's money is not a thing a clerk does. The cost
+ * is `RESTOCK_MS` frozen, which is time the person at the counter is waiting.
+ */
+const onRestock = (state: ShiftState, item: ItemId): ShiftState => {
+  if (state.gaze !== 'stockroom' || isFrozen(state) || state.phase !== 'scanning') {
+    return state
+  }
+  if (state.stock[item] >= SHELF_CAPACITY) {
+    return { ...state, message: `The ${ITEMS[item].label.toLowerCase()} shelf is already full.` }
+  }
+  return {
+    ...state,
+    stock: restock(state.stock, item),
+    frozenUntilMs: state.elapsedMs + RESTOCK_MS,
+    tally: { ...state.tally, restocked: state.tally.restocked + 1 },
+    message: `Putting out ${ITEMS[item].label.toLowerCase()}…`,
+  }
+}
+
 const onUseLookup = (state: ShiftState): ShiftState => {
   if (state.shelf.mode === 'labelled' || isFrozen(state)) {
     return state
@@ -691,6 +737,35 @@ const onRefuseSale = (state: ShiftState): ShiftState => {
 }
 
 /**
+ * What the current customer wants that the shop has not got.
+ */
+export const missingFromBasket = (state: ShiftState): readonly ItemId[] =>
+  outOfStockIn(
+    state.stock,
+    state.customer.basket.map((line) => line.item),
+  )
+
+/**
+ * Send away a customer whose basket the shop cannot fill.
+ *
+ * There is no scored penalty beyond the lost sale itself, in keeping with the
+ * no-scoreboard rule: the shop simply took no money from someone who wanted to
+ * give it some, and that shows up in the takings.
+ */
+const onLostSale = (state: ShiftState): ShiftState => {
+  // Destructured rather than length-checked: `first` being defined is the
+  // same fact as the list being non-empty, so this states it once instead of
+  // leaving an `undefined` case that cannot happen but must still be written.
+  const [first] = missingFromBasket(state)
+  if (first === undefined || state.phase === 'closed') {
+    return state
+  }
+  const label = ITEMS[first].label.toLowerCase()
+  const tally: ShiftTally = { ...state.tally, lostSales: state.tally.lostSales + 1 }
+  return advance(state, tally, `“Sorry, we’re out of ${label}.” They leave empty-handed.`)
+}
+
+/**
  * Points for how the age check was handled on a completed sale.
  */
 const idPointsForSale = (state: ShiftState): number => {
@@ -739,7 +814,16 @@ const onConfirm = (state: ShiftState): ShiftState => {
   // goods. Quoting wrong does not change what the basket was worth, which is
   // precisely why the discrepancy shows up.
   const takings = state.takings + customerTotal(state.customer)
-  return advance({ ...state, drawer, takings }, tally, confirmMessage(grade))
+  // Goods leave the shelf when the sale completes rather than when they are
+  // scanned: a transaction abandoned halfway puts nothing back, because
+  // nothing ever left.
+  let stock = state.stock
+  for (const line of state.customer.basket) {
+    for (let n = 0; n < line.qty; n += 1) {
+      stock = takeFromShelf(stock, line.item)
+    }
+  }
+  return advance({ ...state, drawer, takings, stock }, tally, confirmMessage(grade))
 }
 
 /**
@@ -790,6 +874,12 @@ export const reduce = (state: ShiftState, event: ShiftEvent): ShiftState => {
     }
     case 'ask-id': {
       return onAskId(state)
+    }
+    case 'restock': {
+      return onRestock(state, event.item)
+    }
+    case 'turn-away': {
+      return onLostSale(state)
     }
     case 'refuse-sale': {
       return onRefuseSale(state)
