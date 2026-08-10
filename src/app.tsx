@@ -117,6 +117,9 @@ export const App = ({
   const turnAway = useCallback(() => {
     dispatch({ kind: 'turn-away' })
   }, [])
+  const clean = useCallback((id: number) => {
+    dispatch({ kind: 'clean', id })
+  }, [])
   const confirm = useCallback(() => {
     dispatch({ kind: 'confirm' })
   }, [])
@@ -182,6 +185,8 @@ export const App = ({
               cash={state.cashOnCounter}
               canScan={state.phase === 'scanning'}
               onSweep={sweep}
+              messes={state.messes}
+              onClean={clean}
             />
             <Till
               tray={state.tray}

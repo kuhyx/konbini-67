@@ -279,6 +279,11 @@ export type ShiftEvent =
    * judgement call.
    */
   | { readonly kind: 'turn-away' }
+  /**
+   * Wipe up one mess. Identified rather than indexed: the list is rendered
+   * sorted, so an index would silently clean the wrong thing.
+   */
+  | { readonly kind: 'clean'; readonly id: number }
   | { readonly kind: 'tick'; readonly deltaMs: number }
   | { readonly kind: 'restart'; readonly seed: number; readonly shift: number }
 
@@ -297,6 +302,7 @@ export const EVENT_KIND_ORDER = [
   'refuse-sale',
   'restock',
   'turn-away',
+  'clean',
   'tick',
   'restart',
 ] as const
@@ -326,6 +332,10 @@ export interface ShiftTally {
    * Trips out back to put more stock on the shelf.
    */
   readonly restocked: number
+  /**
+   * Messes wiped up over the shift.
+   */
+  readonly cleaned: number
   readonly score: number
   /**
    * Net yen the drawer is off by. Negative means you shorted yourself.
@@ -343,6 +353,7 @@ export const EMPTY_TALLY: ShiftTally = {
   misquoted: 0,
   lostSales: 0,
   restocked: 0,
+  cleaned: 0,
   score: 0,
   drawerDelta: 0,
 }

@@ -609,3 +609,24 @@ button:disabled {
   color: var(--warning);
   border-color: var(--warning);
 }
+
+/* Spills and litter. Positioned like everything else on the counter, and
+   clicked rather than dragged: wiping is one motion with no decision in it,
+   so a drag would be friction rather than physicality. */
+.mess {
+  position: absolute;
+  translate: -50% -50%;
+  padding: var(--sp-xs);
+  font-size: 1.4rem;
+  line-height: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.85;
+  filter: saturate(0.7);
+}
+
+.mess:hover {
+  opacity: 1;
+  filter: saturate(1) brightness(1.15);
+}

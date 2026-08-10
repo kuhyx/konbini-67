@@ -5,6 +5,7 @@ import { App } from './app'
 import { createManualClock } from './core/clock'
 import { createShift, SHIFT_MS } from './core/shift'
 import { FULL_SHELF } from './core/stock'
+import { MESS_INTERVAL_MS } from './core/mess'
 import { ITEMS } from './core/catalog'
 import { EMPTY_PURSE, type Purse } from './core/money'
 import { asSurface, dragOn } from './test/drag'
@@ -437,5 +438,31 @@ describe('stock and the stockroom', () => {
     await userEvent.click(away)
     // They leave with nothing, and the next customer steps up.
     expect(screen.getByText(/we’re out of/)).toBeInTheDocument()
+  })
+})
+
+describe('cleaning up', () => {
+  it('lets you wipe up a spill once one appears', async () => {
+    const raf = installRaf()
+    const clock = createManualClock()
+    render(<App clock={clock} />)
+
+    // Nothing is dropped in the opening moments — the shop starts clean.
+    expect(document.querySelectorAll('.mess')).toHaveLength(0)
+
+    clock.advance(MESS_INTERVAL_MS + 1000)
+    act(() => {
+      raf.pump()
+    })
+
+    const messes = document.querySelectorAll<HTMLButtonElement>('.mess')
+    expect(messes.length).toBeGreaterThan(0)
+
+    const first = messes[0]
+    if (first === undefined) {
+      throw new Error('expected a mess to have been dropped')
+    }
+    await userEvent.click(first)
+    expect(document.querySelectorAll('.mess')).toHaveLength(messes.length - 1)
   })
 })

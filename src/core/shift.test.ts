@@ -18,6 +18,7 @@ import {
   type ShiftState,
 } from './shift'
 import { FULL_SHELF, RESTOCK_MS, RESTOCK_PER_TRIP, SHELF_CAPACITY } from './stock'
+import { CLEAN_MS, MESS_INTERVAL_MS } from './mess'
 import { customerTotal, tenderValue } from './customer'
 import {
   EVENT_KIND_ORDER,
@@ -127,6 +128,9 @@ const sampleEvent = (kind: (typeof EVENT_KIND_ORDER)[number]): ShiftEvent => {
     }
     case 'restock': {
       return { kind, item: 'melonpan' }
+    }
+    case 'clean': {
+      return { kind, id: 1 }
     }
     default: {
       return { kind }
@@ -1145,5 +1149,74 @@ describe('running out of stock', () => {
     }
     const sold = servePerfectly(fresh)
     expect(sold.stock[line.item]).toBe(SHELF_CAPACITY - line.qty)
+  })
+})
+
+/**
+ * A shift run forward far enough that something has been dropped.
+ */
+const dirty = (count = 1): ShiftState => {
+  let state = createShift(1)
+  while (state.messes.length < count) {
+    state = reduce(state, { kind: 'tick', deltaMs: MESS_INTERVAL_MS })
+  }
+  return state
+}
+
+describe('mess and cleaning', () => {
+  it('drops something eventually, without being asked', () => {
+    // Nobody tells you to clean; that is the whole reason the job slides.
+    expect(dirty().messes.length).toBeGreaterThan(0)
+  })
+
+  it('does not drop anything in the first moments of a shift', () => {
+    const fresh = reduce(createShift(1), { kind: 'tick', deltaMs: 100 })
+    expect(fresh.messes).toStrictEqual([])
+  })
+
+  it('wipes up the one you clicked', () => {
+    const state = dirty(2)
+    const [first] = state.messes
+    if (first === undefined) {
+      throw new Error('expected a mess')
+    }
+    const after = reduce(state, { kind: 'clean', id: first.id })
+    expect(after.messes).toHaveLength(state.messes.length - 1)
+    expect(after.messes.some((mess) => mess.id === first.id)).toBe(false)
+    expect(after.tally.cleaned).toBe(1)
+  })
+
+  it('costs a moment, but less than a trip out back', () => {
+    const state = dirty()
+    const [first] = state.messes
+    if (first === undefined) {
+      throw new Error('expected a mess')
+    }
+    const after = reduce(state, { kind: 'clean', id: first.id })
+    expect(after.frozenUntilMs).toBe(after.elapsedMs + CLEAN_MS)
+    expect(CLEAN_MS).toBeLessThan(RESTOCK_MS)
+  })
+
+  it('ignores a mess that is not there', () => {
+    const state = dirty()
+    expect(reduce(state, { kind: 'clean', id: 9999 })).toStrictEqual(state)
+  })
+
+  it('cannot be done while frozen', () => {
+    const state = dirty()
+    const [first] = state.messes
+    if (first === undefined) {
+      throw new Error('expected a mess')
+    }
+    const busy: ShiftState = { ...state, frozenUntilMs: 9_999_999 }
+    expect(reduce(busy, { kind: 'clean', id: first.id })).toStrictEqual(busy)
+  })
+
+  it('keeps mess generation inside the seeded replay', () => {
+    // Where a spill lands must come from the state rng, not a wall clock, or
+    // the same seed stops reproducing the same shift.
+    const a = dirty(3)
+    const b = dirty(3)
+    expect(JSON.stringify(a.messes)).toBe(JSON.stringify(b.messes))
   })
 })

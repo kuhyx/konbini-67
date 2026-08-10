@@ -1,6 +1,7 @@
 import type { CSSProperties, JSX } from 'react'
 import { type CounterThing, describeThing } from '../core/catalog'
 import { LASER_X, type Placed, type Point } from '../core/layout'
+import { type Mess, type MessKind } from '../core/mess'
 import { type Denom, formatYen } from '../core/money'
 import { useDrag } from './use-drag'
 
@@ -16,6 +17,25 @@ export interface CounterTopProperties {
    */
   readonly canScan: boolean
   readonly onSweep: (item: number, to: Point) => void
+  /**
+   * Spills and litter waiting to be wiped up.
+   */
+  readonly messes: readonly Mess[]
+  readonly onClean: (id: number) => void
+}
+
+/**
+ * What each kind of mess looks like.
+ *
+ * A click rather than a drag, deliberately: round three settled that the test
+ * is whether the physical act is the *interesting* part of the job. Passing an
+ * item over a scanner is; wiping a counter is one motion with no decision in
+ * it, and making it a drag would be friction cosplaying as depth.
+ */
+const MESS_GLYPH: Record<MessKind, string> = {
+  spill: '💧',
+  litter: '🗑️',
+  crumbs: '🍞',
 }
 
 /**
@@ -33,6 +53,8 @@ export const CounterTop = ({
   cash,
   canScan,
   onSweep,
+  messes,
+  onClean,
 }: CounterTopProperties): JSX.Element => {
   // Destructured rather than kept as one object: `drag` is plain state that
   // the render below reads every frame, and pulling it out keeps that obvious
@@ -52,6 +74,21 @@ export const CounterTop = ({
       onPointerUp={onPointerUp}
     >
       <div className="laser" style={{ left: `${String(LASER_X * 100)}%` }} />
+
+      {messes.map((mess) => (
+        <button
+          key={mess.id}
+          type="button"
+          className="mess"
+          style={{ left: `${String(mess.at.x * 100)}%`, top: `${String(mess.at.y * 100)}%` }}
+          aria-label={`Wipe up the ${mess.kind}`}
+          onClick={() => {
+            onClean(mess.id)
+          }}
+        >
+          {MESS_GLYPH[mess.kind]}
+        </button>
+      ))}
 
       {goods.map((piece, index) => {
         const held = drag?.index === index ? drag.at : piece.at

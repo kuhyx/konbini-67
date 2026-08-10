@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { CounterThing } from '../core/catalog'
 import { LASER_X, type Placed } from '../core/layout'
@@ -25,7 +26,15 @@ const mount = (
   properties: Partial<React.ComponentProps<typeof CounterTop>> = {},
 ): { surface: HTMLElement; container: HTMLElement } => {
   const { container } = render(
-    <CounterTop goods={goods} cash={[]} canScan onSweep={vi.fn()} {...properties} />,
+    <CounterTop
+      goods={goods}
+      cash={[]}
+      canScan
+      onSweep={vi.fn()}
+      messes={[]}
+      onClean={vi.fn()}
+      {...properties}
+    />,
   )
   const surface = container.querySelector('.counter-top')
   if (surface === null) {
@@ -144,6 +153,34 @@ describe('CounterTop', () => {
   it('shows a cigarette packet as a thing on the counter', () => {
     mount({ goods: [{ what: { kind: 'cigarette', id: 'hi-lite' }, at: { x: 0.1, y: 0.7 }, tilt: 0 }] })
     expect(screen.getByLabelText('Hi-Lite')).toBeInTheDocument()
+  })
+
+  it('shows spills where they fell, and wipes the one you clicked', async () => {
+    const onClean = vi.fn()
+    mount({
+      goods: [],
+      messes: [
+        { kind: 'spill', at: { x: 0.5, y: 0.7 }, id: 1 },
+        { kind: 'litter', at: { x: 0.8, y: 0.8 }, id: 2 },
+      ],
+      onClean,
+    })
+    await userEvent.click(screen.getByLabelText('Wipe up the litter'))
+    // By id, not by index: the list is rendered in order and a stale index
+    // would silently clean the wrong thing.
+    expect(onClean).toHaveBeenCalledWith(2)
+  })
+
+  it('draws each kind of mess distinctly', () => {
+    const { container } = mount({
+      goods: [],
+      messes: [
+        { kind: 'spill', at: { x: 0.5, y: 0.7 }, id: 1 },
+        { kind: 'crumbs', at: { x: 0.6, y: 0.75 }, id: 2 },
+      ],
+    })
+    const glyphs = [...container.querySelectorAll('.mess')].map((n) => n.textContent)
+    expect(new Set(glyphs).size).toBe(2)
   })
 
   it('renders an empty counter without complaint', () => {

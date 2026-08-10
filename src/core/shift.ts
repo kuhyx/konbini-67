@@ -40,6 +40,7 @@ import {
   requiresIdCheck,
 } from './id-check'
 import { didCrossLaser, type Placed, type Point, scatter } from './layout'
+import { CLEAN_MS, dropMess, type Mess, MESS_INTERVAL_MS, wipe } from './mess'
 import { createRng, nextFloat, type Rng } from './rng'
 import { type ChangeGrade, gradeChange, parMs, speedPoints } from './score'
 import { type ShelfSpec, shelfSpecForShift } from './shelf'
@@ -164,6 +165,21 @@ export interface ShiftState {
    */
   readonly stock: Stock
   /**
+   * Spills and litter waiting to be wiped up.
+   *
+   * Nobody asks you to clean, which is why the job slides — so the pressure
+   * comes from customers minding the state of the shop rather than a score.
+   */
+  readonly messes: readonly Mess[]
+  /**
+   * Next id to hand a mess. Monotonic so two messes are never confusable.
+   */
+  readonly nextMessId: number
+  /**
+   * When the next mess is due.
+   */
+  readonly nextMessAtMs: number
+  /**
    * Most recent feedback line, for the UI.
    */
   readonly message: string
@@ -270,6 +286,9 @@ export const createShift = (seed: number, shift = 1, float: Purse = OPENING_FLOA
     frozenUntilMs: 0,
     tally: EMPTY_TALLY,
     stock: FULL_SHELF,
+    messes: [],
+    nextMessId: 1,
+    nextMessAtMs: MESS_INTERVAL_MS,
     message: 'Ring up the items.',
   }
 }
@@ -372,7 +391,39 @@ const onTick = (state: ShiftState, deltaMs: number): ShiftState => {
   if (elapsedMs >= SHIFT_MS) {
     return { ...state, elapsedMs: SHIFT_MS, phase: 'closed', message: 'Shift over.' }
   }
-  return { ...state, elapsedMs }
+  if (elapsedMs < state.nextMessAtMs) {
+    return { ...state, elapsedMs }
+  }
+  // Something got dropped. The rng lives in state, so which mess and where
+  // stays part of the seeded replay rather than a wall-clock accident.
+  const rng: Rng = { s: state.rng.s }
+  return {
+    ...state,
+    elapsedMs,
+    rng,
+    messes: dropMess(rng, state.messes, state.nextMessId),
+    nextMessId: state.nextMessId + 1,
+    nextMessAtMs: elapsedMs + MESS_INTERVAL_MS,
+  }
+}
+
+/**
+ * Wipes up one mess.
+ *
+ * Allowed in any phase and from any gaze: unlike a restocking trip you are
+ * still behind the counter, so this is an interruption rather than an errand.
+ */
+const onClean = (state: ShiftState, id: number): ShiftState => {
+  const remaining = wipe(state.messes, id)
+  if (remaining.length === state.messes.length || isFrozen(state)) {
+    return state
+  }
+  return {
+    ...state,
+    messes: remaining,
+    frozenUntilMs: state.elapsedMs + CLEAN_MS,
+    tally: { ...state.tally, cleaned: state.tally.cleaned + 1 },
+  }
 }
 
 const onScan = (state: ShiftState): ShiftState => {
@@ -880,6 +931,9 @@ export const reduce = (state: ShiftState, event: ShiftEvent): ShiftState => {
     }
     case 'turn-away': {
       return onLostSale(state)
+    }
+    case 'clean': {
+      return onClean(state, event.id)
     }
     case 'refuse-sale': {
       return onRefuseSale(state)
