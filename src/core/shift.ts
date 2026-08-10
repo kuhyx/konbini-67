@@ -81,6 +81,15 @@ export interface ShiftState {
    * more it took.
    */
   readonly drawerAtTender: Purse
+  /**
+   * The float the shift opened with, kept for the end-of-shift books.
+   */
+  readonly openingFloat: Purse
+  /**
+   * Yen that should have been taken in: every basket total rung up and paid
+   * for. What the drawer *ought* to hold is this plus the opening float.
+   */
+  readonly takings: number
   readonly elapsedMs: number
   /**
    * When the current customer stepped up.
@@ -130,6 +139,8 @@ export const createShift = (seed: number, shift = 1, float: Purse = OPENING_FLOA
     tray: EMPTY_PURSE,
     drawer: float,
     drawerAtTender: float,
+    openingFloat: float,
+    takings: 0,
     elapsedMs: 0,
     customerStartMs: 0,
     frozenUntilMs: 0,
@@ -391,16 +402,21 @@ const onResolve = (state: ShiftState, how: Resolution): ShiftState => {
       drawerDelta: state.tally.drawerDelta + gap,
     }
     const drawer = mergePurses(state.drawer, state.customer.tender)
+    const takings = state.takings + customerTotal(state.customer)
     return advance(
-      { ...state, rng, elapsedMs, drawer },
+      { ...state, rng, elapsedMs, drawer, takings },
       tally,
       `${spec.line} They wave it off. ${formatYen(gap)} short in the books.`,
     )
   }
   // Card, or smaller money: the sale closes cleanly with no change at all.
   const tally: ShiftTally = { ...state.tally, served: state.tally.served + 1 }
-  const drawer = how === 'offer-card' ? state.drawer : mergePurses(state.drawer, state.customer.tender)
-  return advance({ ...state, rng, elapsedMs, drawer }, tally, `${spec.line} Sorted.`)
+  const drawer =
+    how === 'offer-card' ? state.drawer : mergePurses(state.drawer, state.customer.tender)
+  // Card money never touches the till, so it is not part of what the drawer
+  // should hold at close — only cash sales count toward the books.
+  const takings = state.takings + (how === 'offer-card' ? 0 : customerTotal(state.customer))
+  return advance({ ...state, rng, elapsedMs, drawer, takings }, tally, `${spec.line} Sorted.`)
 }
 
 const onConfirm = (state: ShiftState): ShiftState => {
@@ -422,7 +438,8 @@ const onConfirm = (state: ShiftState): ShiftState => {
   // The customer's cash goes into the till. The tray has already been taken
   // out of it piece by piece, so this closes the loop: money is conserved.
   const drawer = mergePurses(state.drawer, state.customer.tender)
-  return advance({ ...state, drawer }, tally, confirmMessage(grade))
+  const takings = state.takings + customerTotal(state.customer)
+  return advance({ ...state, drawer, takings }, tally, confirmMessage(grade))
 }
 
 /**

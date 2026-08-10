@@ -31,6 +31,21 @@ const handleCigarettesIfAsked = async (): Promise<void> => {
 }
 
 /**
+ * Cashes up, which now stands between the end of a shift and the summary.
+ *
+ * Declares whatever the till is actually out by — these tests are about the
+ * shift, not the arithmetic, which books.test.tsx covers.
+ */
+const cashUp = async (declared = '0'): Promise<void> => {
+  const field = screen.queryByLabelText('Declared discrepancy in yen')
+  if (field === null) {
+    return
+  }
+  await userEvent.type(field, declared)
+  await userEvent.click(screen.getByRole('button', { name: /Close the books/i }))
+}
+
+/**
  * Rings up every item, whatever the basket happens to hold.
  */
 const scanEverything = async (): Promise<void> => {
@@ -206,6 +221,10 @@ describe('App', () => {
       raf.pump()
     })
 
+    // Cash up first — the books now sit between the shift and the summary.
+    expect(screen.getByText('Cash up')).toBeInTheDocument()
+    await cashUp()
+
     expect(screen.getByText('Shift over')).toBeInTheDocument()
     expect(screen.getByText('Served')).toBeInTheDocument()
 
@@ -244,6 +263,7 @@ describe('App', () => {
       act(() => {
         raf.pump()
       })
+      await cashUp()
       await userEvent.click(screen.getByRole('button', { name: 'Another shift' }))
     }
     expect(screen.getByText(/KONBINI · SHIFT 3/)).toBeInTheDocument()

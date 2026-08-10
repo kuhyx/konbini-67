@@ -3,6 +3,7 @@ import { STORE_NAME } from './core/catalog'
 import { type Clock, realClock } from './core/clock'
 import type { Denom } from './core/money'
 import { canMakeChange, type Purse } from './core/money'
+import { reconcile, reconcilePoints, type Reconciliation } from './core/reconcile'
 import { changeOwed, createShift, reduce, SHIFT_MS } from './core/shift'
 import { type Notebook as NotebookState, writeNote } from './core/notebook'
 import { loadNotebook, saveNotebook } from './core/notebook-storage'
@@ -15,6 +16,7 @@ import {
   RESOLUTIONS,
 } from './core/types'
 import { shiftEndsAt } from './core/wallclock'
+import { Books } from './ui/books'
 import { Counter } from './ui/counter'
 import { Shelf } from './ui/shelf'
 import { ShiftOver } from './ui/shift-over'
@@ -56,6 +58,12 @@ export const App = ({
   // Notes live outside ShiftState on purpose: they change what the player
   // knows, never what the shift does, so a seeded replay must not see them.
   const [notebook, setNotebook] = useState<NotebookState>(() => loadNotebook(storage))
+  // The books are cashed up after the shift closes and before the summary.
+  const [books, setBooks] = useState<Reconciliation | undefined>(undefined)
+
+  const settle = useCallback((declared: number, actual: number) => {
+    setBooks(reconcile(declared, actual))
+  }, [])
 
   const writeSlotNote = useCallback(
     (slot: number, note: string) => {
@@ -80,6 +88,7 @@ export const App = ({
     const next = seed + 1
     setSeed(next)
     setShiftNo((n) => n + 1)
+    setBooks(undefined)
     dispatch({ kind: 'restart', seed: next, shift: shiftNo + 1 })
   }, [seed, shiftNo])
 
@@ -100,9 +109,27 @@ export const App = ({
   }, [])
 
   if (state.phase === 'closed') {
+    // Cash up first: the errors that never announced themselves during the
+    // shift all land here at once, which is how a real till works.
+    if (books === undefined) {
+      return (
+        <div className="app">
+          <Books
+            drawer={state.drawer}
+            openingFloat={state.openingFloat}
+            takings={state.takings}
+            onSettle={settle}
+          />
+        </div>
+      )
+    }
     return (
       <div className="app">
-        <ShiftOver tally={state.tally} onRestart={restart} />
+        <ShiftOver
+          tally={{ ...state.tally, score: state.tally.score + reconcilePoints(books) }}
+          books={books}
+          onRestart={restart}
+        />
       </div>
     )
   }
