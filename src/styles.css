@@ -630,3 +630,25 @@ button:disabled {
   opacity: 1;
   filter: saturate(1) brightness(1.15);
 }
+
+/* How the customer is taking it. Posture and speech, never a bar: a clerk
+   reads a face, and a percentage on screen would do that reading for you. */
+.tell {
+  margin: var(--sp-sm) 0 0;
+  font-size: 0.85rem;
+  color: var(--muted-on-dark);
+}
+
+.tell .posture {
+  font-style: italic;
+}
+
+/* Only once they have actually said something does the colour change — the
+   restless stage stays quiet on purpose. */
+.tell.annoyed {
+  color: var(--warning);
+}
+
+.tell.leaving {
+  color: var(--danger);
+}

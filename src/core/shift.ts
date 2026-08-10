@@ -41,6 +41,14 @@ import {
 } from './id-check'
 import { didCrossLaser, type Placed, type Point, scatter } from './layout'
 import { CLEAN_MS, dropMess, type Mess, MESS_INTERVAL_MS, wipe } from './mess'
+import {
+  APOLOGY_FORGIVES_MS,
+  APOLOGY_MS,
+  canApologise,
+  type Mood,
+  moodFor,
+  MOODS,
+} from './patience'
 import { createRng, nextFloat, type Rng } from './rng'
 import { type ChangeGrade, gradeChange, parMs, speedPoints } from './score'
 import { type ShelfSpec, shelfSpecForShift } from './shelf'
@@ -180,6 +188,14 @@ export interface ShiftState {
    */
   readonly nextMessAtMs: number
   /**
+   * Milliseconds of this customer's wait already forgiven by apologising.
+   *
+   * Held separately from `customerStartMs` so an apology reads as "some of
+   * that was excused" rather than rewriting when they arrived — which would
+   * also quietly reset the speed bonus.
+   */
+  readonly forgivenMs: number
+  /**
    * Most recent feedback line, for the UI.
    */
   readonly message: string
@@ -289,6 +305,7 @@ export const createShift = (seed: number, shift = 1, float: Purse = OPENING_FLOA
     messes: [],
     nextMessId: 1,
     nextMessAtMs: MESS_INTERVAL_MS,
+    forgivenMs: 0,
     message: 'Ring up the items.',
   }
 }
@@ -372,6 +389,9 @@ const advance = (state: ShiftState, tally: ShiftTally, message: string): ShiftSt
     gaze: 'counter',
     idShown: undefined,
     customerStartMs: state.elapsedMs,
+    // Forgiveness is per-customer. Carrying it over would mean one apology
+    // bought patience from everybody who came after.
+    forgivenMs: 0,
     tally,
     message,
   }
@@ -391,8 +411,18 @@ const onTick = (state: ShiftState, deltaMs: number): ShiftState => {
   if (elapsedMs >= SHIFT_MS) {
     return { ...state, elapsedMs: SHIFT_MS, phase: 'closed', message: 'Shift over.' }
   }
+  const ticked = { ...state, elapsedMs }
+  // Someone who has had enough leaves, taking the sale with them. That is the
+  // whole penalty — no score deduction on top, per the no-scoreboard rule.
+  if (moodOf(ticked) === 'leaving') {
+    return advance(
+      ticked,
+      { ...state.tally, walkedOut: state.tally.walkedOut + 1 },
+      `${MOODS.leaving.line} They put the basket down and go.`,
+    )
+  }
   if (elapsedMs < state.nextMessAtMs) {
-    return { ...state, elapsedMs }
+    return ticked
   }
   // Something got dropped. The rng lives in state, so which mess and where
   // stays part of the seeded replay rather than a wall-clock accident.
@@ -566,6 +596,34 @@ const onLook = (state: ShiftState, at: Gaze): ShiftState => {
     return state
   }
   return { ...state, gaze: at }
+}
+
+/**
+ * How the person at the counter feels about how long this is taking.
+ *
+ * Read from state rather than stored, so it can never drift out of step with
+ * the clock — there is no anger variable to forget to update.
+ */
+export const moodOf = (state: ShiftState): Mood =>
+  moodFor(Math.max(0, state.elapsedMs - state.customerStartMs - state.forgivenMs), state.messes)
+
+/**
+ * "Sorry to keep you."
+ *
+ * Costs a beat and buys back part of the wait. Not a full reset: a real
+ * apology buys you a moment, and forgiving everything would make the button
+ * strictly better than simply being quick.
+ */
+const onApologise = (state: ShiftState): ShiftState => {
+  if (!canApologise(moodOf(state)) || isFrozen(state)) {
+    return state
+  }
+  return {
+    ...state,
+    forgivenMs: state.forgivenMs + APOLOGY_FORGIVES_MS,
+    frozenUntilMs: state.elapsedMs + APOLOGY_MS,
+    message: '“Taihen omatase itashimashita.”',
+  }
 }
 
 /**
@@ -934,6 +992,9 @@ export const reduce = (state: ShiftState, event: ShiftEvent): ShiftState => {
     }
     case 'clean': {
       return onClean(state, event.id)
+    }
+    case 'apologise': {
+      return onApologise(state)
     }
     case 'refuse-sale': {
       return onRefuseSale(state)

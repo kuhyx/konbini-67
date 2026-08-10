@@ -36,12 +36,17 @@ export interface ActionBarProperties {
    * True when the basket wants something the shop has run out of.
    */
   readonly isUnfillable: boolean
+  /**
+   * True once the customer minds the wait and there is still time to save it.
+   */
+  readonly canApologise: boolean
   readonly onAnnounce: (amount: number) => void
   readonly onConfirm: () => void
   readonly onLookup: () => void
   readonly onAskId: () => void
   readonly onRefuse: () => void
   readonly onTurnAway: () => void
+  readonly onApologise: () => void
   readonly onResolve: (how: Resolution) => void
   readonly onLook: (at: Gaze) => void
 }
@@ -54,12 +59,14 @@ export const ActionBar = ({
   canAskId,
   isStuck,
   isUnfillable,
+  canApologise,
   onAnnounce,
   onConfirm,
   onLookup,
   onAskId,
   onRefuse,
   onTurnAway,
+  onApologise,
   onResolve,
   onLook,
 }: ActionBarProperties): JSX.Element => (
@@ -87,6 +94,11 @@ export const ActionBar = ({
     {isUnfillable ? (
       <button type="button" className="ghost warn" onClick={onTurnAway}>
         Out of stock &mdash; send them away
+      </button>
+    ) : undefined}
+    {canApologise ? (
+      <button type="button" className="ghost" onClick={onApologise}>
+        Apologise
       </button>
     ) : undefined}
     {isStuck ? <Negotiation onResolve={onResolve} /> : undefined}

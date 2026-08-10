@@ -4,7 +4,8 @@ import { type Clock, realClock } from './core/clock'
 import { requiresIdCheck } from './core/id-check'
 import type { Point } from './core/layout'
 import { canMakeChange, type Denom, purseCount, type Purse } from './core/money'
-import { changeOwed, createShift, missingFromBasket, reduce } from './core/shift'
+import { changeOwed, createShift, missingFromBasket, moodOf, reduce } from './core/shift'
+import { canApologise as canSaySorry } from './core/patience'
 import type { Stock } from './core/stock'
 import { GAZE, type Gaze, type Resolution } from './core/types'
 import { Counter } from './ui/counter'
@@ -120,6 +121,9 @@ export const App = ({
   const clean = useCallback((id: number) => {
     dispatch({ kind: 'clean', id })
   }, [])
+  const apologise = useCallback(() => {
+    dispatch({ kind: 'apologise' })
+  }, [])
   const confirm = useCallback(() => {
     dispatch({ kind: 'confirm' })
   }, [])
@@ -179,7 +183,9 @@ export const App = ({
       <div className="grid">
         {canSeeCustomer ? (
           <>
-            <Counter customer={state.customer} showTotal={isAnnouncing || isChanging} />
+            <Counter customer={state.customer} showTotal={isAnnouncing || isChanging}
+              mood={moodOf(state)}
+            />
             <CounterTop
               goods={state.onCounter}
               cash={state.cashOnCounter}
@@ -220,12 +226,14 @@ export const App = ({
         canAskId={isRestricted && state.idShown === undefined}
         isStuck={isStuck}
         isUnfillable={missing.length > 0}
+        canApologise={canSaySorry(moodOf(state))}
         onAnnounce={announce}
         onConfirm={confirm}
         onLookup={useLookup}
         onAskId={askId}
         onRefuse={refuseSale}
         onTurnAway={turnAway}
+        onApologise={apologise}
         onResolve={resolve}
         onLook={look}
       />

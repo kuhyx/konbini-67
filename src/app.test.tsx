@@ -6,6 +6,7 @@ import { createManualClock } from './core/clock'
 import { createShift, SHIFT_MS } from './core/shift'
 import { FULL_SHELF } from './core/stock'
 import { MESS_INTERVAL_MS } from './core/mess'
+import { MOOD_AT_MS } from './core/patience'
 import { ITEMS } from './core/catalog'
 import { EMPTY_PURSE, type Purse } from './core/money'
 import { asSurface, dragOn } from './test/drag'
@@ -464,5 +465,25 @@ describe('cleaning up', () => {
     }
     await userEvent.click(first)
     expect(document.querySelectorAll('.mess')).toHaveLength(messes.length - 1)
+  })
+})
+
+describe('keeping someone waiting', () => {
+  it('offers an apology once they mind, and takes it', async () => {
+    const raf = installRaf()
+    const clock = createManualClock()
+    render(<App clock={clock} />)
+
+    // Nobody minds at the start of a transaction.
+    expect(screen.queryByRole('button', { name: /Apologise/i })).not.toBeInTheDocument()
+
+    clock.advance(MOOD_AT_MS.annoyed)
+    act(() => {
+      raf.pump()
+    })
+
+    const sorry = screen.getByRole('button', { name: /Apologise/i })
+    await userEvent.click(sorry)
+    expect(screen.getByText(/omatase/)).toBeInTheDocument()
   })
 })

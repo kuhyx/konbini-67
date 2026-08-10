@@ -284,6 +284,11 @@ export type ShiftEvent =
    * sorted, so an index would silently clean the wrong thing.
    */
   | { readonly kind: 'clean'; readonly id: number }
+  /**
+   * "Sorry to keep you." Buys back some of the wait, and costs a beat of the
+   * only currency the game has.
+   */
+  | { readonly kind: 'apologise' }
   | { readonly kind: 'tick'; readonly deltaMs: number }
   | { readonly kind: 'restart'; readonly seed: number; readonly shift: number }
 
@@ -303,6 +308,7 @@ export const EVENT_KIND_ORDER = [
   'restock',
   'turn-away',
   'clean',
+  'apologise',
   'tick',
   'restart',
 ] as const
@@ -336,6 +342,10 @@ export interface ShiftTally {
    * Messes wiped up over the shift.
    */
   readonly cleaned: number
+  /**
+   * Customers who gave up and walked out mid-transaction.
+   */
+  readonly walkedOut: number
   readonly score: number
   /**
    * Net yen the drawer is off by. Negative means you shorted yourself.
@@ -354,6 +364,7 @@ export const EMPTY_TALLY: ShiftTally = {
   lostSales: 0,
   restocked: 0,
   cleaned: 0,
+  walkedOut: 0,
   score: 0,
   drawerDelta: 0,
 }
