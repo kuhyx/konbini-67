@@ -49,9 +49,14 @@ const cashUp = async (declared = '0'): Promise<void> => {
  * Rings up every item, whatever the basket happens to hold.
  */
 const scanEverything = async (): Promise<void> => {
-  const scan = screen.getByRole('button', { name: 'Scan item' })
-  for (let n = 0; n < 12 && !(scan as HTMLButtonElement).disabled; n += 1) {
-    await userEvent.click(scan)
+  // Goods are swept over the beam one at a time; each successful sweep takes
+  // that item off the counter, so re-query rather than caching the list.
+  for (let n = 0; n < 12; n += 1) {
+    const [first] = screen.queryAllByRole('button', { name: /^Scan / })
+    if (first === undefined) {
+      return
+    }
+    await userEvent.click(first)
   }
 }
 
@@ -133,7 +138,7 @@ describe('App', () => {
     // Wrong change is still a completed sale; the queue moves on either way,
     // and the message becomes feedback on what just happened.
     expect(screen.getByText(/SERVED/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Scan item' })).toBeEnabled()
+    expect(screen.queryAllByRole('button', { name: /^Scan / }).length).toBeGreaterThan(0)
     expect(screen.getByText(/Next|counted it|drawer is|too many/)).toBeInTheDocument()
   })
 
@@ -227,7 +232,7 @@ describe('App', () => {
     render(<App />)
     await userEvent.click(screen.getByRole('button', { name: /Refuse the sale/i }))
     expect(screen.getByText(/leave without their shopping|mutter, and go/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Scan item' })).toBeEnabled()
+    expect(screen.queryAllByRole('button', { name: /^Scan / }).length).toBeGreaterThan(0)
   })
 
   it('shows the summary when the shift ends, and starts a new one', async () => {
@@ -250,7 +255,7 @@ describe('App', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Another shift' }))
     expect(screen.getByText(/KONBINI · SHIFT 2/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Scan item' })).toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: /^Scan / }).length).toBeGreaterThan(0)
   })
 
   it('does not offer the lookup chart while the shelf is still labelled', () => {

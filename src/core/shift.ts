@@ -10,7 +10,7 @@
  * which keeps every branch individually reachable from a test.
  */
 
-import { CIGARETTES, SLOT_TO_CIGARETTE } from './catalog'
+import { CIGARETTES, type ItemId, SLOT_TO_CIGARETTE } from './catalog'
 import { customerTotal, makeCustomer, tenderValue } from './customer'
 import {
   addDenom,
@@ -33,6 +33,7 @@ import {
   isSaleLegal,
   requiresIdCheck,
 } from './id-check'
+import { didCrossLaser, type Placed, type Point, scatter } from './layout'
 import { createRng, nextFloat, type Rng } from './rng'
 import { type ChangeGrade, gradeChange, parMs, speedPoints } from './score'
 import { type ShelfSpec, shelfSpecForShift } from './shelf'
@@ -63,6 +64,20 @@ export interface ShiftState {
    * Items rung up so far.
    */
   readonly scanned: number
+  /**
+   * The basket as it physically sits on the counter, one entry per item.
+   *
+   * Scanning means sweeping one of these over the beam, so the loose goods
+   * have to exist as things with positions rather than as a counter.
+   */
+  readonly onCounter: readonly Placed<ItemId>[]
+  /**
+   * The customer's cash, lying on the counter where they put it.
+   *
+   * A scattered pile rather than a total: counting it is the player's job,
+   * which is the whole reason the TENDERED readout was removed.
+   */
+  readonly cashOnCounter: readonly Placed<Denom>[]
   /**
    * Whether the cigarette request has been satisfied.
    */
@@ -123,6 +138,42 @@ export interface ShiftState {
 }
 
 /**
+ * Where the customer's goods land when they put the basket down.
+ */
+const GOODS_AREA = { x: 0.05, y: 0.1, width: 0.35, height: 0.8 }
+
+/**
+ * Where the customer drops their money.
+ */
+const CASH_AREA = { x: 0.55, y: 0.15, width: 0.4, height: 0.5 }
+
+/**
+ * Spreads a purse out as individual coins and notes.
+ */
+const layOutCash = (rng: Rng, purse: Purse): readonly Placed<Denom>[] => {
+  const loose: Denom[] = []
+  for (const denom of DENOMS) {
+    for (let n = 0; n < purse[denom]; n += 1) {
+      loose.push(denom)
+    }
+  }
+  return scatter(rng, loose, CASH_AREA)
+}
+
+/**
+ * Lays a basket out on the counter, one loose item per unit of quantity.
+ */
+const layOutBasket = (rng: Rng, customer: Customer): readonly Placed<ItemId>[] => {
+  const loose: ItemId[] = []
+  for (const line of customer.basket) {
+    for (let n = 0; n < line.qty; n += 1) {
+      loose.push(line.item)
+    }
+  }
+  return scatter(rng, loose, GOODS_AREA)
+}
+
+/**
  * Total items the current customer wants rung up.
  */
 export const lineCount = (customer: Customer): number => {
@@ -143,12 +194,15 @@ export const lineCount = (customer: Customer): number => {
 export const createShift = (seed: number, shift = 1, float: Purse = OPENING_FLOAT): ShiftState => {
   const rng = createRng(seed)
   const shelf = shelfSpecForShift(shift)
+  const customer = makeCustomer(rng, 1, shelf)
   return {
     phase: 'scanning',
     shift,
     shelf,
     rng,
-    customer: makeCustomer(rng, 1, shelf),
+    customer,
+    onCounter: layOutBasket(rng, customer),
+    cashOnCounter: layOutCash(rng, customer.tender),
     scanned: 0,
     shelfDone: false,
     gaze: 'counter',
@@ -198,11 +252,14 @@ const isFrozen = (state: ShiftState): boolean => state.frozenUntilMs > state.ela
  */
 const advance = (state: ShiftState, tally: ShiftTally, message: string): ShiftState => {
   const rng: Rng = { s: state.rng.s }
+  const customer = makeCustomer(rng, state.customer.id + 1, state.shelf)
   return {
     ...state,
     phase: 'scanning',
     rng,
-    customer: makeCustomer(rng, state.customer.id + 1, state.shelf),
+    customer,
+    onCounter: layOutBasket(rng, customer),
+    cashOnCounter: layOutCash(rng, customer.tender),
     scanned: 0,
     shelfDone: false,
     gaze: 'counter',
@@ -250,6 +307,30 @@ const onScan = (state: ShiftState): ShiftState => {
     drawerAtTender: state.drawer,
     message: 'Count out the change.',
   }
+}
+
+/**
+ * Sweeps one item across the counter.
+ *
+ * It rings up only if the sweep actually took it through the beam. Stopping
+ * short is a miss, and a miss costs nothing but the second it took — you pick
+ * the thing up and pass it again, exactly as at a real till. The item stays
+ * where you left it either way.
+ */
+const onSweep = (state: ShiftState, item: number, to: Point): ShiftState => {
+  const piece = state.onCounter[item]
+  if (piece === undefined || isFrozen(state) || state.phase !== 'scanning') {
+    return state
+  }
+  const moved = state.onCounter.map((each, index) =>
+    index === item ? { ...each, at: to } : each,
+  )
+  if (!didCrossLaser(piece.at, to)) {
+    return { ...state, onCounter: moved, message: 'No beep. Try again.' }
+  }
+  // A successful sweep takes the item off the counter and rings it up.
+  const remaining = moved.filter((_, index) => index !== item)
+  return { ...onScan({ ...state, onCounter: remaining }), onCounter: remaining }
 }
 
 const onPickSlot = (state: ShiftState, slot: number): ShiftState => {
@@ -538,6 +619,9 @@ export const reduce = (state: ShiftState, event: ShiftEvent): ShiftState => {
     }
     case 'scan': {
       return onScan(state)
+    }
+    case 'sweep': {
+      return onSweep(state, event.item, event.to)
     }
     case 'pick-slot': {
       return onPickSlot(state, event.slot)

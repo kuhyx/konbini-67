@@ -1,6 +1,7 @@
 import type { CigaretteId, ItemId } from './catalog'
 import type { Purse } from './money'
 import type { IdCard } from './id-check'
+import type { Point } from './layout'
 import type { RequestForm } from './shelf'
 
 /**
@@ -187,6 +188,7 @@ export const RESOLUTIONS: Record<Resolution, ResolutionSpec> = {
  */
 export type ShiftEvent =
   | { readonly kind: 'scan' }
+  | { readonly kind: 'sweep'; readonly item: number; readonly to: Point }
   | { readonly kind: 'pick-slot'; readonly slot: number }
   | { readonly kind: 'look'; readonly at: Gaze }
   | { readonly kind: 'use-lookup' }
@@ -201,6 +203,7 @@ export type ShiftEvent =
 
 export const EVENT_KIND_ORDER = [
   'scan',
+  'sweep',
   'pick-slot',
   'look',
   'use-lookup',

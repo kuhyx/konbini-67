@@ -72,6 +72,9 @@ const sampleEvent = (kind: (typeof EVENT_KIND_ORDER)[number]): ShiftEvent => {
     case 'pick-slot': {
       return { kind, slot: 3 }
     }
+    case 'sweep': {
+      return { kind, item: 0, to: { x: 0.9, y: 0.5 } }
+    }
     case 'look': {
       return { kind, at: 'clock' }
     }
@@ -830,5 +833,80 @@ describe('age checks', () => {
     const closed = reduce(createShift(1), { kind: 'tick', deltaMs: SHIFT_MS })
     expect(reduce(closed, { kind: 'ask-id' })).toStrictEqual(closed)
     expect(reduce(closed, { kind: 'refuse-sale' })).toStrictEqual(closed)
+  })
+})
+
+describe('sweeping items over the beam', () => {
+  const FAR_SIDE = { x: 0.95, y: 0.5 }
+
+  it('lays the basket out as loose items on the counter', () => {
+    const state = createShift(1)
+    expect(state.onCounter).toHaveLength(lineCount(state.customer))
+    // Scattered, not stacked in one place.
+    const xs = new Set(state.onCounter.map((piece) => piece.at.x))
+    expect(xs.size).toBeGreaterThan(0)
+  })
+
+  it('rings an item up when the sweep crosses the beam', () => {
+    const state = createShift(1)
+    const after = reduce(state, { kind: 'sweep', item: 0, to: FAR_SIDE })
+    expect(after.scanned).toBe(1)
+    expect(after.onCounter).toHaveLength(state.onCounter.length - 1)
+  })
+
+  it('is a miss when the sweep stops short, and costs only the attempt', () => {
+    const state = createShift(1)
+    // Barely moved: never reached the beam.
+    const short = { x: 0.2, y: 0.5 }
+    const after = reduce(state, { kind: 'sweep', item: 0, to: short })
+    expect(after.scanned).toBe(0)
+    expect(after.onCounter).toHaveLength(state.onCounter.length)
+    expect(after.message).toContain('No beep')
+    // No score penalty for fumbling it — you just pass it again.
+    expect(after.tally.score).toBe(state.tally.score)
+  })
+
+  it('leaves a missed item where you dropped it, ready to try again', () => {
+    const state = createShift(1)
+    const short = { x: 0.2, y: 0.5 }
+    const after = reduce(state, { kind: 'sweep', item: 0, to: short })
+    expect(after.onCounter[0]?.at).toStrictEqual(short)
+    // And sweeping it properly this time works.
+    const retried = reduce(after, { kind: 'sweep', item: 0, to: FAR_SIDE })
+    expect(retried.scanned).toBe(1)
+  })
+
+  it('ignores a sweep of an item that is not there', () => {
+    const state = createShift(1)
+    expect(reduce(state, { kind: 'sweep', item: 99, to: FAR_SIDE })).toStrictEqual(state)
+  })
+
+  it('clears the counter as the basket is rung up', () => {
+    let state = createShift(1)
+    const total = lineCount(state.customer)
+    for (let n = 0; n < total; n += 1) {
+      state = reduce(state, { kind: 'sweep', item: 0, to: FAR_SIDE })
+    }
+    expect(state.onCounter).toHaveLength(0)
+    expect(state.scanned).toBe(total)
+  })
+
+  it('gives the next customer a fresh counter', () => {
+    const state = servePerfectly(createShift(1))
+    expect(state.onCounter).toHaveLength(lineCount(state.customer))
+  })
+
+  it('cannot be swept while the chart has you frozen', () => {
+    const frozen = reduce(createShift(1, 4), { kind: 'use-lookup' })
+    expect(reduce(frozen, { kind: 'sweep', item: 0, to: FAR_SIDE })).toStrictEqual(frozen)
+  })
+
+  it('cannot be swept once scanning is done', () => {
+    const done = scanAll(createShift(1))
+    expect(reduce(done, { kind: 'sweep', item: 0, to: FAR_SIDE })).toStrictEqual(done)
+  })
+
+  it('lays out identically for the same seed', () => {
+    expect(createShift(5).onCounter).toStrictEqual(createShift(5).onCounter)
   })
 })

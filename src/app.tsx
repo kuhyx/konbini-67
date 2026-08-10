@@ -3,6 +3,7 @@ import { STORE_NAME } from './core/catalog'
 import { type Clock, realClock } from './core/clock'
 import type { Denom } from './core/money'
 import { requiresIdCheck } from './core/id-check'
+import type { Point } from './core/layout'
 import { canMakeChange, type Purse } from './core/money'
 import { reconcile, reconcilePoints, type Reconciliation } from './core/reconcile'
 import { changeOwed, createShift, reduce, SHIFT_MS } from './core/shift'
@@ -19,6 +20,7 @@ import {
 import { shiftEndsAt } from './core/wallclock'
 import { Books } from './ui/books'
 import { Counter } from './ui/counter'
+import { CounterTop } from './ui/counter-top'
 import { Shelf } from './ui/shelf'
 import { ShiftOver } from './ui/shift-over'
 import { Notebook } from './ui/notebook'
@@ -108,6 +110,9 @@ export const App = ({
   const resolve = useCallback((how: Resolution) => {
     dispatch({ kind: 'resolve', how })
   }, [])
+  const sweep = useCallback((item: number, to: Point) => {
+    dispatch({ kind: 'sweep', item, to })
+  }, [])
   const askId = useCallback(() => {
     dispatch({ kind: 'ask-id' })
   }, [])
@@ -188,7 +193,10 @@ export const App = ({
 
       <div className="grid">
         {canSeeCustomer ? (
-          <Counter customer={state.customer} scanned={state.scanned} showTotal={isChanging} />
+          <>
+            <Counter customer={state.customer} scanned={state.scanned} showTotal={isChanging} />
+            <CounterTop goods={state.onCounter} cash={state.cashOnCounter} onSweep={sweep} />
+          </>
         ) : (
           <div className="panel looking-away">
             <h2>You&rsquo;re looking away</h2>
@@ -216,16 +224,6 @@ export const App = ({
       </div>
 
       <div className="actions">
-        <button
-          type="button"
-          className="primary"
-          disabled={isChanging || isShelf}
-          onClick={() => {
-            dispatch({ kind: 'scan' })
-          }}
-        >
-          Scan item
-        </button>
         <button
           type="button"
           className="primary"
