@@ -1,5 +1,6 @@
 import type { CigaretteId, ItemId } from './catalog'
 import type { Purse } from './money'
+import type { IdCard } from './id-check'
 import type { RequestForm } from './shelf'
 
 /**
@@ -27,6 +28,10 @@ export interface Customer {
    */
   readonly tender: Purse
   readonly cigarette: CigaretteRequest | undefined
+  /**
+   * What they produce if asked to prove their age.
+   */
+  readonly idCard: IdCard
 }
 
 /**
@@ -189,6 +194,8 @@ export type ShiftEvent =
   | { readonly kind: 'take-back'; readonly denom: number }
   | { readonly kind: 'confirm' }
   | { readonly kind: 'resolve'; readonly how: Resolution }
+  | { readonly kind: 'ask-id' }
+  | { readonly kind: 'refuse-sale' }
   | { readonly kind: 'tick'; readonly deltaMs: number }
   | { readonly kind: 'restart'; readonly seed: number; readonly shift: number }
 
@@ -201,6 +208,8 @@ export const EVENT_KIND_ORDER = [
   'take-back',
   'confirm',
   'resolve',
+  'ask-id',
+  'refuse-sale',
   'tick',
   'restart',
 ] as const

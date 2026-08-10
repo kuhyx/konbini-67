@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { CIGARETTES } from './catalog'
 import { canMakeChange, DENOMS, EMPTY_PURSE, greedyChange, purseValue } from './money'
+import {
+  ID_CHECK_MS,
+  ID_SCORE,
+  type IdOutcome,
+  isSaleLegal,
+  requiresIdCheck,
+} from './id-check'
 import { changeOwed, createShift, lineCount, reduce, SHIFT_MS, type ShiftState } from './shift'
 import { tenderValue } from './customer'
 import {
@@ -132,6 +139,49 @@ const stuck = (): ShiftState => {
   const bigNotesOnly = { ...EMPTY_PURSE, 10_000: 2, 5000: 2, 1000: 2 }
   return { ...changing(), drawer: bigNotesOnly, drawerAtTender: bigNotesOnly }
 }
+
+/**
+ * A shift whose first customer wants cigarettes AND carries the given ID.
+ */
+const cigShiftWithOutcome = (from: number, outcome: IdOutcome): ShiftState => {
+  let seed = from
+  while (seed < from + 400) {
+    const state = createShift(seed)
+    if (state.customer.cigarette !== undefined && state.customer.idCard.outcome === outcome) {
+      return state
+    }
+    seed += 1
+  }
+  throw new Error(`no ${outcome} cigarette customer near seed ${String(from)}`)
+}
+
+/**
+ * Serves a customer through to confirm, checking their ID on the way.
+ */
+const serveWithId = (start: ShiftState): ShiftState => {
+  let state = reduce(start, { kind: 'ask-id' })
+  state = scanAll(state)
+  if (state.phase === 'shelf' && state.customer.cigarette !== undefined) {
+    state = reduce(state, { kind: 'pick-slot', slot: CIGARETTES[state.customer.cigarette.cigarette].slot })
+  }
+  return reduce(payExact(state), { kind: 'confirm' })
+}
+
+/**
+ * The same, but never looking at the ID at all.
+ */
+const serveWithoutId = (start: ShiftState): ShiftState => {
+  let state = scanAll(start)
+  if (state.phase === 'shelf' && state.customer.cigarette !== undefined) {
+    state = reduce(state, { kind: 'pick-slot', slot: CIGARETTES[state.customer.cigarette.cigarette].slot })
+  }
+  return reduce(payExact(state), { kind: 'confirm' })
+}
+
+/**
+ * A shift whose first customer wants cigarettes, so the basket needs an ID.
+ */
+const restricted = (): ShiftState => cigShift(1)
 
 describe('createShift', () => {
   it('opens on the first customer with an empty tally', () => {
@@ -671,5 +721,114 @@ describe('talking your way out of an empty till', () => {
     const second = reduce(state, { kind: 'resolve', how: 'ask-smaller' })
     expect(first.message).toBe(second.message)
     expect(first.rng.s).toBe(second.rng.s)
+  })
+})
+
+describe('age checks', () => {
+  it('does not mark anyone as checked until you ask', () => {
+    expect(restricted().idShown).toBeUndefined()
+  })
+
+  it('shows you the card when you ask, and costs a moment', () => {
+    const state = restricted()
+    const after = reduce(state, { kind: 'ask-id' })
+    expect(after.idShown).toBe(state.customer.idCard.outcome)
+    expect(after.elapsedMs).toBe(state.elapsedMs + ID_CHECK_MS)
+  })
+
+  it('ignores a second look at the same card', () => {
+    const once = reduce(restricted(), { kind: 'ask-id' })
+    expect(reduce(once, { kind: 'ask-id' })).toStrictEqual(once)
+  })
+
+  it('never tells you what to do with what it shows you', () => {
+    const after = reduce(restricted(), { kind: 'ask-id' })
+    expect(after.message).not.toMatch(/refuse|should/i)
+  })
+
+  it('lets some customers take offence at being asked', () => {
+    let seed = 1
+    let state = createShift(seed)
+    while (!state.customer.idCard.willArgue && seed < 200) {
+      seed += 1
+      state = createShift(seed)
+    }
+    expect(reduce(state, { kind: 'ask-id' }).message).toContain('Seriously?')
+  })
+
+  it('rewards refusing someone who cannot prove their age', () => {
+    let seed = 1
+    let state = createShift(seed)
+    while (isSaleLegal(state.customer.idCard.outcome) && seed < 200) {
+      seed += 1
+      state = createShift(seed)
+    }
+    const after = reduce(reduce(state, { kind: 'ask-id' }), { kind: 'refuse-sale' })
+    expect(after.tally.score).toBe(ID_SCORE.refusedCorrectly)
+    expect(after.tally.served).toBe(1)
+  })
+
+  it('charges a little for turning away someone who was fine', () => {
+    let seed = 1
+    let state = createShift(seed)
+    while (!isSaleLegal(state.customer.idCard.outcome) && seed < 200) {
+      seed += 1
+      state = createShift(seed)
+    }
+    const after = reduce(reduce(state, { kind: 'ask-id' }), { kind: 'refuse-sale' })
+    expect(after.tally.score).toBe(ID_SCORE.refusedWrongly)
+  })
+
+  it('judges a refusal on the real card even if you never looked', () => {
+    // Turning someone away on a hunch still gets graded against the truth —
+    // you were right or you were not, whether or not you checked.
+    const state = cigShiftWithOutcome(1, 'underage')
+    const blind = reduce(state, { kind: 'refuse-sale' })
+    const checked = reduce(reduce(state, { kind: 'ask-id' }), { kind: 'refuse-sale' })
+    expect(blind.tally.score).toBe(checked.tally.score)
+    expect(blind.tally.score).toBe(ID_SCORE.refusedCorrectly)
+  })
+
+  it('moves to the next customer after a refusal', () => {
+    const state = restricted()
+    const after = reduce(state, { kind: 'refuse-sale' })
+    expect(after.customer.id).toBe(state.customer.id + 1)
+    expect(after.phase).toBe('scanning')
+  })
+
+  it('charges heavily for selling to someone underage', () => {
+    // Compared against the same sale to someone old enough: the change and
+    // speed points are identical, so the gap is exactly the ID call.
+    const underage = serveWithId(cigShiftWithOutcome(1, 'underage'))
+    const legal = serveWithId(cigShiftWithOutcome(1, 'valid'))
+    expect(underage.tally.score).toBeLessThan(legal.tally.score)
+    expect(legal.tally.score - underage.tally.score).toBe(
+      ID_SCORE.soldLegally - ID_SCORE.soldUnderage,
+    )
+  })
+
+  it('charges for skipping the check on a restricted basket', () => {
+    // Same customer, same money: the only difference is having looked.
+    const state = cigShiftWithOutcome(1, 'valid')
+    const withCheck = serveWithId(state)
+    const without = serveWithoutId(state)
+    expect(without.tally.score).toBeLessThan(withCheck.tally.score)
+    expect(without.tally.score).toBeLessThan(0)
+  })
+
+  it('does not ask for ID on an ordinary basket', () => {
+    let seed = 1
+    let state = createShift(seed)
+    while (requiresIdCheck(state.customer) && seed < 200) {
+      seed += 1
+      state = createShift(seed)
+    }
+    expect(requiresIdCheck(state.customer)).toBe(false)
+  })
+
+  it('is inert once the shift has closed', () => {
+    const closed = reduce(createShift(1), { kind: 'tick', deltaMs: SHIFT_MS })
+    expect(reduce(closed, { kind: 'ask-id' })).toStrictEqual(closed)
+    expect(reduce(closed, { kind: 'refuse-sale' })).toStrictEqual(closed)
   })
 })

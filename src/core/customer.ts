@@ -1,5 +1,6 @@
 import { CIGARETTE_ORDER, CIGARETTES, ITEM_ORDER, ITEMS } from './catalog'
 import { type Denom, DENOMS, EMPTY_PURSE, type Purse } from './money'
+import { makeIdCard } from './id-check'
 import { nextFloat, nextInt, pick, type Rng } from './rng'
 import type { ShelfSpec } from './shelf'
 import type { BasketLine, CigaretteRequest, Customer } from './types'
@@ -210,6 +211,7 @@ export const makeCustomer = (rng: Rng, id: number, shelf: ShelfSpec): Customer =
     basket,
     tender: makeTender(rng, total),
     cigarette,
+    idCard: makeIdCard(rng),
   }
 }
 

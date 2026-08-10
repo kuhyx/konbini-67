@@ -24,6 +24,15 @@ import {
   type Purse,
   removeDenom,
 } from './money'
+import {
+  describeId,
+  ID_CHECK_MS,
+  ID_SCORE,
+  idCheckPoints,
+  type IdOutcome,
+  isSaleLegal,
+  requiresIdCheck,
+} from './id-check'
 import { createRng, nextFloat, type Rng } from './rng'
 import { type ChangeGrade, gradeChange, parMs, speedPoints } from './score'
 import { type ShelfSpec, shelfSpecForShift } from './shelf'
@@ -62,6 +71,13 @@ export interface ShiftState {
    * Where the clerk is looking. Anything but `counter` hides the customer.
    */
   readonly gaze: Gaze
+  /**
+   * Whether this customer has been asked to prove their age.
+   *
+   * Undefined means not asked — which on an age-restricted basket is itself
+   * a decision, and a scored one.
+   */
+  readonly idShown: IdOutcome | undefined
   /**
    * Change counted out so far, physically taken from the drawer.
    */
@@ -136,6 +152,7 @@ export const createShift = (seed: number, shift = 1, float: Purse = OPENING_FLOA
     scanned: 0,
     shelfDone: false,
     gaze: 'counter',
+    idShown: undefined,
     tray: EMPTY_PURSE,
     drawer: float,
     drawerAtTender: float,
@@ -189,6 +206,7 @@ const advance = (state: ShiftState, tally: ShiftTally, message: string): ShiftSt
     scanned: 0,
     shelfDone: false,
     gaze: 'counter',
+    idShown: undefined,
     tray: EMPTY_PURSE,
     customerStartMs: state.elapsedMs,
     tally,
@@ -419,11 +437,71 @@ const onResolve = (state: ShiftState, how: Resolution): ShiftState => {
   return advance({ ...state, rng, elapsedMs, drawer, takings }, tally, `${spec.line} Sorted.`)
 }
 
+/**
+ * Asks to see some ID.
+ *
+ * Costs a couple of seconds and, for the one customer in five who takes
+ * offence, a moment of being told off. Asking is never the wrong call — the
+ * argument is noise, not a signal.
+ */
+const onAskId = (state: ShiftState): ShiftState => {
+  if (state.idShown !== undefined) {
+    return state
+  }
+  const card = state.customer.idCard
+  const line = card.willArgue
+    ? '“Seriously? Do I look under twenty?” They hand it over anyway.'
+    : 'They hand it over.'
+  return {
+    ...state,
+    idShown: card.outcome,
+    elapsedMs: state.elapsedMs + ID_CHECK_MS,
+    message: `${line} ${describeId(card)}`,
+  }
+}
+
+/**
+ * Turns the sale down.
+ *
+ * The right call for anyone who cannot prove their age, and the wrong one for
+ * anyone who can — but the clerk has to decide which, which is the mechanic.
+ */
+const onRefuseSale = (state: ShiftState): ShiftState => {
+  const outcome = state.idShown ?? state.customer.idCard.outcome
+  const points = idCheckPoints(outcome, false)
+  const tally: ShiftTally = {
+    ...state.tally,
+    served: state.tally.served + 1,
+    score: state.tally.score + points,
+  }
+  const message = isSaleLegal(outcome)
+    ? 'They were old enough. They leave without their shopping.'
+    : 'You turn them down. They mutter, and go.'
+  return advance(state, tally, message)
+}
+
+/**
+ * Points for how the age check was handled on a completed sale.
+ */
+const idPointsForSale = (state: ShiftState): number => {
+  if (!requiresIdCheck(state.customer)) {
+    return 0
+  }
+  if (state.idShown === undefined) {
+    return ID_SCORE.skippedCheck
+  }
+  return idCheckPoints(state.idShown, true)
+}
+
 const onConfirm = (state: ShiftState): ShiftState => {
   if (state.phase !== 'changing' || !canTender(state)) {
     return state
   }
   const grade = gradeChange(state.tray, changeOwed(state), state.drawerAtTender)
+  // Selling beer or tobacco without looking at an ID is its own mistake,
+  // whether or not the customer happened to be old enough. Getting away with
+  // it is not the same as doing it right.
+  const idPoints = idPointsForSale(state)
   const par = parMs(lineCount(state.customer), state.customer.cigarette !== undefined)
   const speed = grade.correct ? speedPoints(state.elapsedMs - state.customerStartMs, par) : 0
   const tally: ShiftTally = {
@@ -433,7 +511,7 @@ const onConfirm = (state: ShiftState): ShiftState => {
     wrongChange: state.tally.wrongChange + (grade.correct ? 0 : 1),
     sloppyChange: state.tally.sloppyChange + (grade.surplusCoins > 0 ? 1 : 0),
     drawerDelta: state.tally.drawerDelta + grade.drawerDelta,
-    score: state.tally.score + grade.points + speed,
+    score: state.tally.score + grade.points + speed + idPoints,
   }
   // The customer's cash goes into the till. The tray has already been taken
   // out of it piece by piece, so this closes the loop: money is conserved.
@@ -481,6 +559,12 @@ export const reduce = (state: ShiftState, event: ShiftEvent): ShiftState => {
     }
     case 'resolve': {
       return onResolve(state, event.how)
+    }
+    case 'ask-id': {
+      return onAskId(state)
+    }
+    case 'refuse-sale': {
+      return onRefuseSale(state)
     }
   }
 }

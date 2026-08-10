@@ -2,6 +2,7 @@ import { useCallback, useReducer, useState, type JSX } from 'react'
 import { STORE_NAME } from './core/catalog'
 import { type Clock, realClock } from './core/clock'
 import type { Denom } from './core/money'
+import { requiresIdCheck } from './core/id-check'
 import { canMakeChange, type Purse } from './core/money'
 import { reconcile, reconcilePoints, type Reconciliation } from './core/reconcile'
 import { changeOwed, createShift, reduce, SHIFT_MS } from './core/shift'
@@ -107,6 +108,12 @@ export const App = ({
   const resolve = useCallback((how: Resolution) => {
     dispatch({ kind: 'resolve', how })
   }, [])
+  const askId = useCallback(() => {
+    dispatch({ kind: 'ask-id' })
+  }, [])
+  const refuseSale = useCallback(() => {
+    dispatch({ kind: 'refuse-sale' })
+  }, [])
 
   if (state.phase === 'closed') {
     // Cash up first: the errors that never announced themselves during the
@@ -140,6 +147,10 @@ export const App = ({
   // Only surfaced when the till genuinely cannot pay out: a clerk does not
   // start negotiating over change they can simply hand over.
   const isStuck = isChanging && !canMakeChange(changeOwed(state), state.drawer)
+  // The prompt is always available on a restricted basket; deciding whether
+  // this particular customer needs asking is the player's call, not the
+  // register's.
+  const isRestricted = requiresIdCheck(state.customer)
   const canSeeCustomer = GAZE[state.gaze].canSeeCustomer
 
   return (
@@ -237,6 +248,14 @@ export const App = ({
             Check the chart (−{state.shelf.lookupPenalty})
           </button>
         ) : undefined}
+        {isRestricted && state.idShown === undefined ? (
+          <button type="button" className="ghost" onClick={askId}>
+            Ask for ID
+          </button>
+        ) : undefined}
+        <button type="button" className="ghost" onClick={refuseSale}>
+          Refuse the sale
+        </button>
         {isStuck
           ? RESOLUTION_ORDER.map((how) => (
               <button

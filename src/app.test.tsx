@@ -210,6 +210,26 @@ describe('App', () => {
     expect(screen.getByText(/That is better/)).toBeInTheDocument()
   })
 
+  it('asks for ID on a restricted basket and shows what they produce', async () => {
+    installRaf()
+    render(<App />)
+    // Shift 1 seed 1 opens on a customer who wants cigarettes.
+    const ask = screen.getByRole('button', { name: /Ask for ID/i })
+    await userEvent.click(ask)
+    // The card is described, never adjudicated.
+    expect(screen.getByText(/card says|not got it|expired/i)).toBeInTheDocument()
+    // And it is not on offer twice for the same customer.
+    expect(screen.queryByRole('button', { name: /Ask for ID/i })).not.toBeInTheDocument()
+  })
+
+  it('lets you turn a sale down and moves on to the next customer', async () => {
+    installRaf()
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: /Refuse the sale/i }))
+    expect(screen.getByText(/leave without their shopping|mutter, and go/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Scan item' })).toBeEnabled()
+  })
+
   it('shows the summary when the shift ends, and starts a new one', async () => {
     const raf = installRaf()
     const clock = createManualClock()
