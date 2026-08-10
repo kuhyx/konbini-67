@@ -1,4 +1,5 @@
 import type { CigaretteId, ItemId } from './catalog'
+import type { HotItem } from './hotfood'
 import type { Purse } from './money'
 import type { IdCard } from './id-check'
 import type { Point } from './layout'
@@ -126,13 +127,14 @@ export const PHASE_ORDER = ['scanning', 'shelf', 'announcing', 'changing', 'clos
  * the customer — and independent flags would multiply against `Phase` into a
  * branch space that cannot be covered without exclusions.
  */
-export type Gaze = 'counter' | 'shelf' | 'clock' | 'stockroom'
+export type Gaze = 'counter' | 'shelf' | 'clock' | 'stockroom' | 'kitchen'
 
 export const GAZE_ORDER = [
   'counter',
   'shelf',
   'clock',
   'stockroom',
+  'kitchen',
 ] as const satisfies readonly Gaze[]
 
 /**
@@ -157,6 +159,7 @@ export const GAZE: Record<Gaze, GazeSpec> = {
   shelf: { canSeeCustomer: false, label: 'Turn to the shelf' },
   clock: { canSeeCustomer: false, label: 'Look at the clock' },
   stockroom: { canSeeCustomer: false, label: 'Go out back' },
+  kitchen: { canSeeCustomer: false, label: 'To the hot case' },
 }
 
 /**
@@ -289,6 +292,14 @@ export type ShiftEvent =
    * only currency the game has.
    */
   | { readonly kind: 'apologise' }
+  /**
+   * Put a portion on to cook. Costs a moment of handling.
+   */
+  | { readonly kind: 'cook'; readonly what: HotItem }
+  /**
+   * Take a portion out — to sell it, or to bin it if it is ruined.
+   */
+  | { readonly kind: 'take-out'; readonly id: number }
   | { readonly kind: 'tick'; readonly deltaMs: number }
   | { readonly kind: 'restart'; readonly seed: number; readonly shift: number }
 
@@ -309,6 +320,8 @@ export const EVENT_KIND_ORDER = [
   'turn-away',
   'clean',
   'apologise',
+  'cook',
+  'take-out',
   'tick',
   'restart',
 ] as const
@@ -346,6 +359,14 @@ export interface ShiftTally {
    * Customers who gave up and walked out mid-transaction.
    */
   readonly walkedOut: number
+  /**
+   * Portions left too long and thrown away.
+   */
+  readonly binned: number
+  /**
+   * Hot food actually sold.
+   */
+  readonly hotSold: number
   readonly score: number
   /**
    * Net yen the drawer is off by. Negative means you shorted yourself.
@@ -365,6 +386,8 @@ export const EMPTY_TALLY: ShiftTally = {
   restocked: 0,
   cleaned: 0,
   walkedOut: 0,
+  binned: 0,
+  hotSold: 0,
   score: 0,
   drawerDelta: 0,
 }

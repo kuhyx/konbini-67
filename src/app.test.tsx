@@ -7,6 +7,7 @@ import { createShift, SHIFT_MS } from './core/shift'
 import { FULL_SHELF } from './core/stock'
 import { MESS_INTERVAL_MS } from './core/mess'
 import { MOOD_AT_MS } from './core/patience'
+import { HOT_ITEMS } from './core/hotfood'
 import { ITEMS } from './core/catalog'
 import { EMPTY_PURSE, type Purse } from './core/money'
 import { asSurface, dragOn } from './test/drag'
@@ -485,5 +486,30 @@ describe('keeping someone waiting', () => {
     const sorry = screen.getByRole('button', { name: /Apologise/i })
     await userEvent.click(sorry)
     expect(screen.getByText(/omatase/)).toBeInTheDocument()
+  })
+})
+
+describe('the hot case', () => {
+  it('cooks something, and sells it once it is ready', async () => {
+    const raf = installRaf()
+    const clock = createManualClock()
+    render(<App clock={clock} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /To the hot case/i }))
+    expect(screen.getByText(/sells nothing while it is empty/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByText(HOT_ITEMS.coffee.label))
+    expect(document.querySelectorAll('.portion')).toHaveLength(1)
+
+    // The timer runs while you are doing anything else — that is the point.
+    clock.advance(HOT_ITEMS.coffee.cookMs + 1000)
+    act(() => {
+      raf.pump()
+    })
+    expect(document.querySelectorAll('.portion.ready')).toHaveLength(1)
+
+    await userEvent.click(screen.getByLabelText(/Hot Coffee, ready/))
+    expect(document.querySelectorAll('.portion')).toHaveLength(0)
+    expect(screen.getByText(/Hot Coffee sold/)).toBeInTheDocument()
   })
 })

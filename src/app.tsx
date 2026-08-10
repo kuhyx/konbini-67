@@ -7,11 +7,13 @@ import { canMakeChange, type Denom, purseCount, type Purse } from './core/money'
 import { changeOwed, createShift, missingFromBasket, moodOf, reduce } from './core/shift'
 import { canApologise as canSaySorry } from './core/patience'
 import type { Stock } from './core/stock'
+import type { HotItem } from './core/hotfood'
 import { GAZE, type Gaze, type Resolution } from './core/types'
 import { Counter } from './ui/counter'
 import { CounterTop } from './ui/counter-top'
 import { ActionBar } from './ui/action-bar'
 import { Shelf } from './ui/shelf'
+import { HotCase } from './ui/hot-case'
 import { Stockroom } from './ui/stockroom'
 import { ShiftOver } from './ui/shift-over'
 import { createSpeaker, type Speaker } from './ui/sound'
@@ -121,6 +123,12 @@ export const App = ({
   const clean = useCallback((id: number) => {
     dispatch({ kind: 'clean', id })
   }, [])
+  const cook = useCallback((what: HotItem) => {
+    dispatch({ kind: 'cook', what })
+  }, [])
+  const takeOut = useCallback((id: number) => {
+    dispatch({ kind: 'take-out', id })
+  }, [])
   const apologise = useCallback(() => {
     dispatch({ kind: 'apologise' })
   }, [])
@@ -215,6 +223,15 @@ export const App = ({
         {isLookingUp ? <WallClock elapsedMs={state.elapsedMs} /> : undefined}
         {state.gaze === 'stockroom' ? (
           <Stockroom stock={state.stock} enabled={canRestock} onRestock={doRestock} />
+        ) : undefined}
+        {state.gaze === 'kitchen' ? (
+          <HotCase
+            cases={state.hotCase}
+            nowMs={state.elapsedMs}
+            enabled={state.elapsedMs >= state.frozenUntilMs}
+            onCook={cook}
+            onTakeOut={takeOut}
+          />
         ) : undefined}
       </div>
 

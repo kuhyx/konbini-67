@@ -652,3 +652,83 @@ button:disabled {
 .tell.leaving {
   color: var(--danger);
 }
+
+/* The hot case. Two halves: what you can start, and what is already going.
+   The second half is the only thing in the shop that changes while you are
+   looking elsewhere, so it is drawn as objects rather than as a timer list. */
+.hot-starters,
+.hot-going {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-xs);
+  margin: var(--sp-sm) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.starter {
+  display: flex;
+  gap: var(--sp-xs);
+  align-items: center;
+  padding: var(--sp-xs) var(--sp-sm);
+  background: var(--ink-raised-2);
+  border: 1px solid #443c38;
+  border-radius: var(--r-sm);
+}
+
+.starter-emoji {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.starter-label {
+  font-size: 0.8rem;
+}
+
+.starter-price {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted-on-dark);
+}
+
+/* A portion in the case. The bar fills while it cooks; after that the border
+   is the only thing that speaks, because a countdown would do the watching
+   for you. */
+.portion {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: var(--sp-xs) var(--sp-sm);
+  background: var(--ink-raised-2);
+  border: 1px solid #443c38;
+  border-radius: var(--r-sm);
+}
+
+.portion-emoji {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.portion-bar {
+  display: block;
+  width: 2.2rem;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--accent) calc(var(--cooked, 0) * 100%),
+    #443c38 calc(var(--cooked, 0) * 100%)
+  );
+}
+
+.portion.ready {
+  border-color: var(--success);
+}
+
+/* Left too long. Money the shop spent on nothing. */
+.portion.ruined {
+  border-color: var(--danger);
+  opacity: 0.6;
+}

@@ -40,6 +40,14 @@ import {
   requiresIdCheck,
 } from './id-check'
 import { didCrossLaser, type Placed, type Point, scatter } from './layout'
+import {
+  CASE_CAPACITY,
+  type Cooking,
+  type HotItem,
+  HOT_ITEMS,
+  remove,
+  stageOf,
+} from './hotfood'
 import { CLEAN_MS, dropMess, type Mess, MESS_INTERVAL_MS, wipe } from './mess'
 import {
   APOLOGY_FORGIVES_MS,
@@ -196,6 +204,19 @@ export interface ShiftState {
    */
   readonly forgivenMs: number
   /**
+   * What is on the roller and in the warmer.
+   *
+   * The only part of the shop that changes state while you are doing
+   * something else. Stages are derived from `elapsedMs` rather than stored,
+   * so the same tick that runs the shift clock runs the food — there is no
+   * second timer, and there must never be one.
+   */
+  readonly hotCase: readonly Cooking[]
+  /**
+   * Next id to hand a portion.
+   */
+  readonly nextCookId: number
+  /**
    * Most recent feedback line, for the UI.
    */
   readonly message: string
@@ -306,6 +327,8 @@ export const createShift = (seed: number, shift = 1, float: Purse = OPENING_FLOA
     nextMessId: 1,
     nextMessAtMs: MESS_INTERVAL_MS,
     forgivenMs: 0,
+    hotCase: [],
+    nextCookId: 1,
     message: 'Ring up the items.',
   }
 }
@@ -596,6 +619,68 @@ const onLook = (state: ShiftState, at: Gaze): ShiftState => {
     return state
   }
   return { ...state, gaze: at }
+}
+
+/**
+ * How long handling a portion costs, in milliseconds.
+ *
+ * Putting food on and taking it off are quick — the pressure is meant to come
+ * from the timer running while you serve, not from the handling itself.
+ */
+export const HANDLE_MS = 800
+
+/**
+ * Puts one portion on to cook.
+ *
+ * Refused when the case is full: without a cap the winning move is to fill
+ * the roller at the start of the shift and never think about it again.
+ */
+const onCook = (state: ShiftState, what: HotItem): ShiftState => {
+  if (isFrozen(state) || state.hotCase.length >= CASE_CAPACITY) {
+    return state
+  }
+  return {
+    ...state,
+    hotCase: [...state.hotCase, { what, startedMs: state.elapsedMs, id: state.nextCookId }],
+    nextCookId: state.nextCookId + 1,
+    frozenUntilMs: state.elapsedMs + HANDLE_MS,
+    message: `${HOT_ITEMS[what].label} on.`,
+  }
+}
+
+/**
+ * Takes a portion out: sold if it is good, binned if it was left too long.
+ *
+ * Both are the same action because they are the same motion — you find out
+ * which it was by looking at what you are holding, which is the point of the
+ * grace window being visible rather than announced.
+ */
+const onTakeOut = (state: ShiftState, id: number): ShiftState => {
+  const portion = state.hotCase.find((each) => each.id === id)
+  if (portion === undefined || isFrozen(state)) {
+    return state
+  }
+  const stage = stageOf(portion, state.elapsedMs)
+  if (stage === 'cooking') {
+    return { ...state, message: 'Not ready yet.' }
+  }
+  const spec = HOT_ITEMS[portion.what]
+  const wasRuined = stage === 'ruined'
+  return {
+    ...state,
+    hotCase: remove(state.hotCase, id),
+    frozenUntilMs: state.elapsedMs + HANDLE_MS,
+    // A sold portion is money in the drawer; a ruined one is money the shop
+    // spent on nothing, which is why it shows up in the takings either way.
+    drawer: wasRuined ? state.drawer : addDenom(state.drawer, 100),
+    takings: wasRuined ? state.takings : state.takings + spec.price,
+    tally: {
+      ...state.tally,
+      binned: state.tally.binned + (wasRuined ? 1 : 0),
+      hotSold: state.tally.hotSold + (wasRuined ? 0 : 1),
+    },
+    message: wasRuined ? `That ${spec.label.toLowerCase()} is ruined. Bin it.` : `${spec.label} sold.`,
+  }
 }
 
 /**
@@ -995,6 +1080,12 @@ export const reduce = (state: ShiftState, event: ShiftEvent): ShiftState => {
     }
     case 'apologise': {
       return onApologise(state)
+    }
+    case 'cook': {
+      return onCook(state, event.what)
+    }
+    case 'take-out': {
+      return onTakeOut(state, event.id)
     }
     case 'refuse-sale': {
       return onRefuseSale(state)
