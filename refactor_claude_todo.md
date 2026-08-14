@@ -17,7 +17,7 @@ churn, not size alone — refactoring pays where code is read and changed often
 
 ## Scope in this repo
 
-- **6 files** currently exceed 250 lines (of 74 eligible files).
+- **6 files** currently exceed 250 lines (of 75 eligible files).
 - **4,355 lines** sit in violation; longest file is **1437 lines**.
 
 Exempt (do NOT split these):
