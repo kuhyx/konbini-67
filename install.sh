@@ -31,16 +31,21 @@ main() {
 
     ensure_pacman_pkg node nodejs
     ensure_pacman_pkg npm npm
+    # pnpm, not npm, is the package manager here: this project depends on
+    # @kuhyx/ts-core, a subdirectory of the kuhyx/utils monorepo, and npm
+    # cannot install a subdirectory of a git repo -- it ignores the `&path:`
+    # key and fails looking for package.json at the repo root.
+    ensure_pacman_pkg pnpm pnpm
     # run.sh probes the preview server over HTTP; bash's /dev/tcp only resolves
     # the first getaddrinfo result and misses vite's IPv6-only bind.
     ensure_pacman_pkg curl curl
 
-    if [[ -f package-lock.json ]]; then
-        log "npm ci"
-        npm ci
+    if [[ -f pnpm-lock.yaml ]]; then
+        log "pnpm install --frozen-lockfile"
+        pnpm install --frozen-lockfile
     else
-        log "npm install"
-        npm install
+        log "pnpm install"
+        pnpm install
     fi
 
     log "done"

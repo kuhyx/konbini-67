@@ -1,45 +1,32 @@
 /**
- * Mutable state for a mulberry32 generator.
+ * Seeded RNG for the shift simulation.
+ *
+ * The generator itself now lives in `@kuhyx/ts-core`, which four repos share.
+ * This file is the local seam: it re-exports the shared core unchanged and
+ * keeps one adapter for the *exclusive-max* `nextInt` this codebase calls
+ * everywhere.
+ *
+ * The shared `nextInt` is inclusive of both bounds (matching sims3-clone and
+ * europe-county-map). Rewriting the seven call sites here to
+ * `nextInt(rng, 0, n - 1)` would be an arithmetic edit on every random draw
+ * in the game, and an off-by-one would silently change generated customers,
+ * baskets and IDs rather than fail a type check. The adapter keeps this
+ * codebase's semantics exactly as they were.
  */
-export interface Rng {
-  s: number
-}
+export {
+  createRng,
+  nextFloat,
+  pick,
+  type Rng,
+} from '@kuhyx/ts-core'
 
-export const createRng = (seed: number): Rng => ({ s: seed >>> 0 })
-
-/**
- * Deterministic float in [0, 1). Advances the generator.
- */
-export const nextFloat = (rng: Rng): number => {
-  rng.s = (rng.s + 0x6D_2B_79_F5) >>> 0
-  let t = rng.s
-  t = Math.imul(t ^ (t >>> 15), t | 1)
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-  return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296
-}
+import { nextInt as sharedNextInt, type Rng } from '@kuhyx/ts-core'
 
 /**
  * Deterministic integer in [0, maxExclusive).
+ *
+ * Note the *exclusive* upper bound, unlike `@kuhyx/ts-core`'s inclusive
+ * `nextInt`. Consumes exactly one step either way.
  */
 export const nextInt = (rng: Rng, maxExclusive: number): number =>
-  Math.floor(nextFloat(rng) * maxExclusive)
-
-/**
- * Deterministic pick from a non-empty tuple.
- *
- * Iterates rather than indexing: under `noUncheckedIndexedAccess` an index
- * read is `T | undefined`, and the undefined arm is unreachable here, so it
- * could never be covered.
- */
-export const pick = <T>(rng: Rng, items: readonly [T, ...T[]]): T => {
-  const target = nextInt(rng, items.length)
-  let out: T = items[0]
-  let seen = 0
-  for (const item of items) {
-    if (seen === target) {
-      out = item
-    }
-    seen += 1
-  }
-  return out
-}
+  sharedNextInt(rng, 0, maxExclusive - 1)

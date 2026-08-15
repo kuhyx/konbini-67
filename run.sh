@@ -54,9 +54,9 @@ wait_for_port() {
 
 play() {
     log "building"
-    npm run build
+    pnpm run build
     log "serving on http://localhost:$PORT"
-    npm run preview -- --port "$PORT" --strictPort &
+    pnpm run preview -- --port "$PORT" --strictPort &
     PREVIEW_PID=$!
     wait_for_port
     # Fully detached: with no browser already running, xdg-open stays attached to
@@ -78,13 +78,13 @@ main() {
         play
         ;;
     dev)
-        npm run dev
+        pnpm run dev
         ;;
     check)
-        npm run check
+        pnpm run check
         ;;
     build)
-        npm run build
+        pnpm run build
         ;;
     *)
         echo "Usage: $0 [play|dev|check|build]" >&2

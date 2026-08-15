@@ -31,7 +31,7 @@ memorisation is player-chosen, and lookups-per-shift is a stat you watch fall.
 ## Run it
 
 ```bash
-./install.sh     # node + npm via pacman, then npm ci
+./install.sh     # node + pnpm via pacman, then pnpm install
 ./run.sh         # build and open the game
 ./run.sh dev     # dev server with hot reload
 ./run.sh check   # typecheck + lint + 100% coverage
@@ -65,7 +65,7 @@ a finite amount of money you can run out of, beer and tobacco need an ID check
 you have to make the call on, you type the price yourself and can mistype it,
 and items are dragged over the scanner beam across a counter with the
 customer's money loose on it. Nothing totals anything for you, and there is no
-scoreboard. `npm run check` clean at 100% coverage. **M0 is signed off** — its
+scoreboard. `pnpm run check` clean at 100% coverage. **M0 is signed off** — its
 done-condition was always a play-check rather than a gate, and it passed one.
 
 Since then the roadmap has been built too: **stocking shelves and cleaning**
