@@ -110,10 +110,7 @@ export const coveringNote = (total: number): Denom => {
   if (total > 5000) {
     return 10_000
   }
-  if (total > 1000) {
-    return 5000
-  }
-  return 1000
+  return total > 1000 ? 5000 : 1000
 }
 
 /**

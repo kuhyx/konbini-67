@@ -375,12 +375,9 @@ const quotedPrice = (state: ShiftState): number => state.quoted ?? customerTotal
 /**
  * Whether every item is scanned and any cigarette request is handled.
  */
-const canTender = (state: ShiftState): boolean => {
-  if (state.scanned < lineCount(state.customer)) {
-    return false
-  }
-  return state.customer.cigarette === undefined || state.shelfDone
-}
+const canTender = (state: ShiftState): boolean =>
+  state.scanned >= lineCount(state.customer) &&
+  (state.customer.cigarette === undefined || state.shelfDone)
 
 /**
  * Whether the lookup chart currently has the player frozen.
@@ -489,10 +486,9 @@ const onScan = (state: ShiftState): ShiftState => {
   // The packet is not on the counter yet, so the basket runs out one short of
   // the full count and the customer's request interrupts here.
   if (state.customer.cigarette !== undefined && !state.shelfDone) {
-    if (scanned >= basketCount(state.customer)) {
-      return { ...state, scanned, phase: 'shelf', message: 'Cigarettes — pick the slot.' }
-    }
-    return { ...state, scanned }
+    return scanned >= basketCount(state.customer)
+      ? { ...state, scanned, phase: 'shelf', message: 'Cigarettes — pick the slot.' }
+      : { ...state, scanned }
   }
   if (scanned < total) {
     return { ...state, scanned }
@@ -616,10 +612,7 @@ const onPickSlot = (state: ShiftState, slot: number): ShiftState => {
  * actually carries information ("No beep. Try again.").
  */
 const onLook = (state: ShiftState, at: Gaze): ShiftState => {
-  if (isFrozen(state) || state.gaze === at) {
-    return state
-  }
-  return { ...state, gaze: at }
+  return isFrozen(state) || state.gaze === at ? state : { ...state, gaze: at }
 }
 
 /**
@@ -803,10 +796,9 @@ const confirmMessage = (grade: ChangeGrade): string => {
   if (grade.drawerDelta < 0) {
     return `They took it and left. The drawer is ${formatYen(-grade.drawerDelta)} down.`
   }
-  if (grade.surplusCoins > 0) {
-    return `Right, but ${String(grade.surplusCoins)} coin(s) too many.`
-  }
-  return 'Exact. Next.'
+  return grade.surplusCoins > 0
+    ? `Right, but ${String(grade.surplusCoins)} coin(s) too many.`
+    : 'Exact. Next.'
 }
 
 /**
@@ -969,10 +961,7 @@ const idPointsForSale = (state: ShiftState): number => {
   if (!requiresIdCheck(state.customer)) {
     return 0
   }
-  if (state.idShown === undefined) {
-    return ID_SCORE.skippedCheck
-  }
-  return idCheckPoints(state.idShown, true)
+  return state.idShown === undefined ? ID_SCORE.skippedCheck : idCheckPoints(state.idShown, true)
 }
 
 const onConfirm = (state: ShiftState): ShiftState => {

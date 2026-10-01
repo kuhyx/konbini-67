@@ -97,10 +97,9 @@ export const makeIdCard = (rng: Rng): IdCard => {
   if (roll < 0.9) {
     return { outcome: 'underage', age: 15 + nextInt(rng, LEGAL_AGE - 15), willArgue }
   }
-  if (roll < 0.95) {
-    return { outcome: 'none', age: 0, willArgue }
-  }
-  return { outcome: 'expired', age: LEGAL_AGE + 1 + nextInt(rng, 20), willArgue }
+  return roll < 0.95
+    ? { outcome: 'none', age: 0, willArgue }
+    : { outcome: 'expired', age: LEGAL_AGE + 1 + nextInt(rng, 20), willArgue }
 }
 
 /**
@@ -118,10 +117,9 @@ export const describeId = (card: IdCard): string => {
   if (card.outcome === 'none') {
     return 'They have not got it on them.'
   }
-  if (card.outcome === 'expired') {
-    return `The card expired last year. Born ${String(card.age)} years ago.`
-  }
-  return `The card says ${String(card.age)}.`
+  return card.outcome === 'expired'
+    ? `The card expired last year. Born ${String(card.age)} years ago.`
+    : `The card says ${String(card.age)}.`
 }
 
 /**

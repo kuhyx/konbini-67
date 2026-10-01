@@ -121,8 +121,5 @@ export const gradeForShift = (score: number, served: number): Grade => {
   if (per >= 70) {
     return 'B'
   }
-  if (per >= 30) {
-    return 'C'
-  }
-  return 'D'
+  return per >= 30 ? 'C' : 'D'
 }
