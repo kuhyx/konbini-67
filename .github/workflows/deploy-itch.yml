@@ -45,8 +45,10 @@ jobs:
           SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
+          # Check-runs are named after the JOB: the freshness job here is
+          # "dependencies on newest stable", which "freshness" alone misses.
           runs="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/check-runs?per_page=100" \
-            --jq '[.check_runs[] | select(.name != "deploy" and (.name | test("freshness"; "i") | not))]')"
+            --jq '[.check_runs[] | select(.name != "deploy" and (.name | test("freshness|newest stable"; "i") | not))]')"
           pending="$(jq '[.[] | select(.status != "completed")] | length' <<<"$runs")"
           bad="$(jq '[.[] | select(.status == "completed" and (.conclusion | IN("success","skipped","neutral") | not))] | length' <<<"$runs")"
           echo "checks: $(jq length <<<"$runs") pending: $pending failing: $bad"
