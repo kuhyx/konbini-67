@@ -35,6 +35,7 @@ memorisation is player-chosen, and lookups-per-shift is a stat you watch fall.
 ./run.sh         # build and open the game
 ./run.sh dev     # dev server with hot reload
 ./run.sh check   # typecheck + lint + 100% coverage
+tools/publish_itch.sh   # build, smoke-test, push to kuhyx.itch.io/konbini-67
 ```
 
 ## How it is built

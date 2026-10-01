@@ -41,3 +41,12 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      # The same dist/ is what tools/publish_itch.sh pushes to itch.io: prove
+      # it boots in headless Chromium with zero page errors before it can ship.
+      - uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Web smoke test (itch.io build)
+        run: |
+          uv run --no-project --with playwright python -m playwright install --with-deps chromium
+          uv run --no-project --with playwright python tools/web_smoke.py dist --shot web_smoke.png

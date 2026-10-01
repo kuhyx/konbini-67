@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+  // Relative asset URLs: itch.io serves the build from a nested CDN path, where
+  // the default absolute `/assets/...` would 404.
+  base: './',
   plugins: [react()],
   test: {
     globals: true,
