@@ -1,0 +1,113 @@
+name: deploy-itch
+
+# Auto-update https://kuhyx.itch.io/konbini-67 (channel html5) whenever main
+# changes. Runs after this repo's check workflows finish; deploys only when
+# EVERY check on that commit is green (dependency-freshness excepted: an
+# upstream release overnight is not this commit's fault), and only if game
+# files changed since the build that is live now. Build -> boot gate -> push,
+# all via tools/publish_itch.sh, the same path a local release uses.
+# Secret: BUTLER_API_KEY (dedicated itch API key, revocable on its own).
+
+on:
+  workflow_run:
+    workflows: [CI, md-naming]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Deploy even if no game files changed (proves the push path)
+        type: boolean
+        default: false
+
+# One deploy at a time; a newer commit's run waits, never interleaves.
+concurrency:
+  group: deploy-itch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  checks: read
+  actions: read
+
+env:
+  ITCH_TARGET: kuhyx/konbini-67:html5
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every check on this commit green?
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          runs="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name != "deploy" and (.name | test("freshness"; "i") | not))]')"
+          pending="$(jq '[.[] | select(.status != "completed")] | length' <<<"$runs")"
+          bad="$(jq '[.[] | select(.status == "completed" and (.conclusion | IN("success","skipped","neutral") | not))] | length' <<<"$runs")"
+          echo "checks: $(jq length <<<"$runs") pending: $pending failing: $bad"
+          if [[ "$bad" -gt 0 ]]; then echo "go=false" >>"$GITHUB_OUTPUT"; echo "::warning::not deploying: a check failed"; exit 0; fi
+          if [[ "$pending" -gt 0 ]]; then echo "go=false" >>"$GITHUB_OUTPUT"; echo "waiting for the last workflow to finish"; exit 0; fi
+          echo "go=true" >>"$GITHUB_OUTPUT"
+          echo "sha=$SHA" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        if: steps.gate.outputs.go == 'true'
+        with:
+          ref: ${{ steps.gate.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Install butler
+        if: steps.gate.outputs.go == 'true'
+        run: |
+          curl -fsSL -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          unzip -q butler.zip -d "$HOME/.butler" && rm butler.zip
+          echo "$HOME/.butler" >>"$GITHUB_PATH"
+
+      - name: Game files changed since the live build?
+        if: steps.gate.outputs.go == 'true'
+        id: changed
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          set -euo pipefail
+          live="$(butler status "$ITCH_TARGET" | grep -oE '\| [0-9a-f]{7,} +\|' | tr -d '| ' | head -1 || true)"
+          echo "live build: ${live:-none}"
+          if [[ "${{ inputs.force }}" == "true" ]]; then echo "deploy=true" >>"$GITHUB_OUTPUT"; echo "forced"; exit 0; fi
+          if [[ -n "$live" ]] && git cat-file -e "$live^{commit}" 2>/dev/null; then
+            # Docs, markdown and CI-only changes never reach players.
+            game="$(git diff --name-only "$live" HEAD -- . ':!*.md' ':!docs/**' ':!.github/**' | head -1)"
+            [[ -z "$game" ]] && { echo "deploy=false" >>"$GITHUB_OUTPUT"; echo "no game changes since $live"; exit 0; }
+          fi
+          echo "deploy=true" >>"$GITHUB_OUTPUT"
+
+      # Toolchain: the same steps ci.yml uses to build and smoke-test dist/.
+      - uses: pnpm/action-setup@v4
+        if: steps.gate.outputs.go == 'true' && steps.changed.outputs.deploy == 'true'
+
+      - uses: actions/setup-node@v5
+        if: steps.gate.outputs.go == 'true' && steps.changed.outputs.deploy == 'true'
+        with:
+          node-version: "24.21.0"
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.gate.outputs.go == 'true' && steps.changed.outputs.deploy == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        if: steps.gate.outputs.go == 'true' && steps.changed.outputs.deploy == 'true'
+
+      - name: Install Chromium for the boot test
+        if: steps.gate.outputs.go == 'true' && steps.changed.outputs.deploy == 'true'
+        run: uv run --no-project --with playwright python -m playwright install --with-deps chromium
+
+      - name: Build, boot-test, push
+        if: steps.gate.outputs.go == 'true' && steps.changed.outputs.deploy == 'true'
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: tools/publish_itch.sh
