@@ -16,7 +16,7 @@ readonly TARGET="kuhyx/konbini-67:html5"
 readonly BUTLER_URL="https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default"
 readonly BIN_DIR="$HOME/.local/bin"
 # Build output lives beside the repo, never inside it (no binaries in git).
-readonly OUT="$REPO_ROOT/../konbini-67_binaries/web"
+readonly OUT="$HOME/data/konbini-67_binaries/web"
 DRY_RUN=0
 
 ensure_butler() {
