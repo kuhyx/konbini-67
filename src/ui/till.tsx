@@ -3,13 +3,13 @@ import { type Denom, DENOMS, formatYen, type Purse } from '../core/money'
 
 export interface TillProperties {
   /**
-   * Change counted out so far, waiting in your hand.
-   */
+  Change counted out so far, waiting in your hand.
+  */
   readonly tray: Purse
   /**
-   * What is left in the drawer. A denomination you are out of cannot be
-   * handed over — you work with what the till actually holds.
-   */
+  What is left in the drawer. A denomination you are out of cannot be
+  handed over — you work with what the till actually holds.
+  */
   readonly drawer: Purse
   readonly enabled: boolean
   readonly onGive: (denom: Denom) => void
@@ -17,17 +17,17 @@ export interface TillProperties {
 }
 
 /**
- * The till drawer.
- *
- * Counting change out is clicking compartments, not dragging coins. Dragging
- * was tried and reverted: picking a denomination is a *decision* about which
- * pieces make the amount, and the interesting part is the arithmetic, not the
- * hand-eye work of sliding thirty coins across a counter one at a time.
- *
- * The customer's own money stays physical, though — that is a different act.
- * Counting what they gave you means looking at a scattered pile and reading
- * it, which no amount of clicking would reproduce.
- */
+The till drawer.
+
+Counting change out is clicking compartments, not dragging coins. Dragging
+was tried and reverted: picking a denomination is a *decision* about which
+pieces make the amount, and the interesting part is the arithmetic, not the
+hand-eye work of sliding thirty coins across a counter one at a time.
+
+The customer's own money stays physical, though — that is a different act.
+Counting what they gave you means looking at a scattered pile and reading
+it, which no amount of clicking would reproduce.
+*/
 export const Till = ({
   tray,
   drawer,

@@ -21,8 +21,8 @@ import {
 } from './types'
 
 /**
- * Regulars and passers-by. Names are flavour only; M6 gives them memory.
- */
+Regulars and passers-by. Names are flavour only; M6 gives them memory.
+*/
 const NAMES = [
   'Salaryman',
   'Student',
@@ -35,10 +35,10 @@ const NAMES = [
 ] as const
 
 /**
- * Names cycle by customer id rather than being drawn from the rng: two
- * consecutive customers sharing a name reads as a bug even when it is honest
- * chance.
- */
+Names cycle by customer id rather than being drawn from the rng: two
+consecutive customers sharing a name reads as a bug even when it is honest
+chance.
+*/
 export const nameForId = (id: number): string => {
   let out: string = NAMES[0]
   let seen = 0
@@ -53,8 +53,8 @@ export const nameForId = (id: number): string => {
 }
 
 /**
- * Total yen for a basket.
- */
+Total yen for a basket.
+*/
 export const basketTotal = (basket: readonly BasketLine[]): number => {
   let total = 0
   for (const line of basket) {
@@ -65,13 +65,13 @@ export const basketTotal = (basket: readonly BasketLine[]): number => {
 
 
 /**
- * Cumulative upper bound for each style, walked in `PAYMENT_STYLE_ORDER`.
- *
- * Weighted toward the styles that put small money *into* the drawer, because
- * that is what the change-making then spends back out. `scatter` closes the
- * range at 1 so the walk always terminates on a real style — no unreachable
- * fallback arm.
- */
+Cumulative upper bound for each style, walked in `PAYMENT_STYLE_ORDER`.
+
+Weighted toward the styles that put small money *into* the drawer, because
+that is what the change-making then spends back out. `scatter` closes the
+range at 1 so the walk always terminates on a real style — no unreachable
+fallback arm.
+*/
 const STYLE_CEILING: Record<PaymentStyle, number> = {
   exact: 0.2,
   'near-exact': 0.45,
@@ -81,8 +81,8 @@ const STYLE_CEILING: Record<PaymentStyle, number> = {
 }
 
 /**
- * Picks a payment style from the generator.
- */
+Picks a payment style from the generator.
+*/
 export const pickPaymentStyle = (rng: Rng): PaymentStyle => {
   const roll = nextFloat(rng)
   let chosen: PaymentStyle = 'scatter'
@@ -96,16 +96,16 @@ export const pickPaymentStyle = (rng: Rng): PaymentStyle => {
 }
 
 /**
- * Adds `count` pieces of one denomination to a purse.
- */
+Adds `count` pieces of one denomination to a purse.
+*/
 const addDenoms = (purse: Purse, denom: Denom, count: number): Purse => ({
   ...purse,
   [denom]: purse[denom] + count,
 })
 
 /**
- * The smallest single note that covers `total`.
- */
+The smallest single note that covers `total`.
+*/
 export const coveringNote = (total: number): Denom => {
   if (total > 5000) {
     return 10_000
@@ -114,8 +114,8 @@ export const coveringNote = (total: number): Denom => {
 }
 
 /**
- * Counts out `amount` exactly, largest pieces first.
- */
+Counts out `amount` exactly, largest pieces first.
+*/
 const exactly = (amount: number): Record<Denom, number> => {
   const out: Record<Denom, number> = { ...EMPTY_PURSE }
   let left = amount
@@ -127,11 +127,11 @@ const exactly = (amount: number): Record<Denom, number> => {
 }
 
 /**
- * What the customer hands over, according to how they pay.
- *
- * Never less than the total — a purse that could not cover the bill would be a
- * different mechanic (a declined sale) rather than a change-making problem.
- */
+What the customer hands over, according to how they pay.
+
+Never less than the total — a purse that could not cover the bill would be a
+different mechanic (a declined sale) rather than a change-making problem.
+*/
 export const makeTender = (rng: Rng, total: number, style?: PaymentStyle): Purse => {
   const chosen = style ?? pickPaymentStyle(rng)
   if (chosen === 'exact') {
@@ -171,8 +171,8 @@ export const makeTender = (rng: Rng, total: number, style?: PaymentStyle): Purse
 }
 
 /**
- * Generates one seeded customer for a shift.
- */
+Generates one seeded customer for a shift.
+*/
 export const makeCustomer = (rng: Rng, id: number, shelf: ShelfSpec): Customer => {
   const lineCount = 1 + nextInt(rng, 3)
   const basket: BasketLine[] = []
@@ -205,26 +205,26 @@ export const makeCustomer = (rng: Rng, id: number, shelf: ShelfSpec): Customer =
 }
 
 /**
- * What the customer hands over against a quoted price.
- *
- * They pay what they were *told*, not what the till says — so a misquote that
- * goes unnoticed changes the money on the counter, and therefore the change,
- * and therefore the books. Their payment style is fixed when they walk in, so
- * quoting the same number twice always produces the same handful.
- */
+What the customer hands over against a quoted price.
+
+They pay what they were *told*, not what the till says — so a misquote that
+goes unnoticed changes the money on the counter, and therefore the change,
+and therefore the books. Their payment style is fixed when they walk in, so
+quoting the same number twice always produces the same handful.
+*/
 export const tenderFor = (customer: Customer, quoted: number): Purse =>
   makeTender(createRng(customer.id), Math.max(0, quoted), customer.style)
 
 /**
- * What the customer owes, cigarettes included.
- */
+What the customer owes, cigarettes included.
+*/
 export const customerTotal = (customer: Customer): number =>
   basketTotal(customer.basket) +
   (customer.cigarette ? CIGARETTES[customer.cigarette.cigarette].price : 0)
 
 /**
- * Yen value of what the customer handed over.
- */
+Yen value of what the customer handed over.
+*/
 export const tenderValue = (customer: Customer): number => {
   let total = 0
   for (const denom of DENOMS) {

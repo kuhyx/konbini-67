@@ -4,11 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from './mount'
 
 /**
- * The bootstrap file is the one people leave uncovered. Both branches — a
- * mount point present and absent — are exercised here, and the mounted one is
- * torn down before the suite ends so the game loop's requestAnimationFrame
- * cannot outlive the jsdom environment.
- */
+The bootstrap file is the one people leave uncovered. Both branches — a
+mount point present and absent — are exercised here, and the mounted one is
+torn down before the suite ends so the game loop's requestAnimationFrame
+cannot outlive the jsdom environment.
+*/
 describe('mount', () => {
   let root: Root | undefined
 

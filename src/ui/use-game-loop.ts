@@ -2,13 +2,13 @@ import { useEffect, useEffectEvent } from 'react'
 import type { Clock } from '../core/clock'
 
 /**
- * The one place in the app that owns a frame loop.
- *
- * Everything else is a pure props->JSX component, so all timing coverage
- * funnels through this hook and the RAF harness in `src/test/harness.ts`.
- * Local state plus effects is where uncoverable branches hide; keeping them
- * confined to one hook is what makes 100% reachable.
- */
+The one place in the app that owns a frame loop.
+
+Everything else is a pure props->JSX component, so all timing coverage
+funnels through this hook and the RAF harness in `src/test/harness.ts`.
+Local state plus effects is where uncoverable branches hide; keeping them
+confined to one hook is what makes 100% reachable.
+*/
 export const useGameLoop = (
   clock: Clock,
   isRunning: boolean,

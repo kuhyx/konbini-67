@@ -1,14 +1,14 @@
 /**
- * The shift: one pure reducer over a closed event union.
- *
- * Nothing here reads a clock or an rng directly — the tick delta arrives as
- * an argument and the generator lives in state — so a seeded shift replays
- * byte-identically. That is what makes the whole thing testable, and it is
- * enforced by the `no-restricted-properties` lint ban.
- *
- * Each event arm is its own small function and `reduce` is a thin dispatcher,
- * which keeps every branch individually reachable from a test.
- */
+The shift: one pure reducer over a closed event union.
+
+Nothing here reads a clock or an rng directly — the tick delta arrives as
+an argument and the generator lives in state — so a seeded shift replays
+byte-identically. That is what makes the whole thing testable, and it is
+enforced by the `no-restricted-properties` lint ban.
+
+Each event arm is its own small function and `reduce` is a thin dispatcher,
+which keeps every branch individually reachable from a test.
+*/
 
 import {
   CIGARETTES,
@@ -82,8 +82,8 @@ import {
 } from './types'
 
 /**
- * How long one shift runs, in milliseconds.
- */
+How long one shift runs, in milliseconds.
+*/
 export const SHIFT_MS = 180_000
 
 export interface ShiftState {
@@ -93,156 +93,156 @@ export interface ShiftState {
   readonly rng: Rng
   readonly customer: Customer
   /**
-   * Items rung up so far.
-   */
+  Items rung up so far.
+  */
   readonly scanned: number
   /**
-   * The basket as it physically sits on the counter, one entry per item.
-   *
-   * Scanning means sweeping one of these over the beam, so the loose goods
-   * have to exist as things with positions rather than as a counter.
-   */
+  The basket as it physically sits on the counter, one entry per item.
+  
+  Scanning means sweeping one of these over the beam, so the loose goods
+  have to exist as things with positions rather than as a counter.
+  */
   readonly onCounter: readonly Placed<CounterThing>[]
   /**
-   * The customer's cash, lying on the counter where they put it.
-   *
-   * A scattered pile rather than a total: counting it is the player's job,
-   * which is the whole reason the TENDERED readout was removed.
-   *
-   * Empty until the price has been announced — a customer cannot pay before
-   * they have been told what they owe.
-   */
+  The customer's cash, lying on the counter where they put it.
+  
+  A scattered pile rather than a total: counting it is the player's job,
+  which is the whole reason the TENDERED readout was removed.
+  
+  Empty until the price has been announced — a customer cannot pay before
+  they have been told what they owe.
+  */
   readonly cashOnCounter: readonly Placed<Denom>[]
   /**
-   * Change counted out so far, physically taken from the drawer.
-   */
+  Change counted out so far, physically taken from the drawer.
+  */
   readonly tray: Purse
   /**
-   * What the clerk told the customer they owed.
-   *
-   * Undefined until announced. This is what they actually pay against — say
-   * the wrong number and, if they do not catch it, the wrong number is what
-   * the transaction settles on.
-   */
+  What the clerk told the customer they owed.
+  
+  Undefined until announced. This is what they actually pay against — say
+  the wrong number and, if they do not catch it, the wrong number is what
+  the transaction settles on.
+  */
   readonly quoted: number | undefined
   /**
-   * Whether the cigarette request has been satisfied.
-   */
+  Whether the cigarette request has been satisfied.
+  */
   readonly shelfDone: boolean
   /**
-   * Where the clerk is looking. Anything but `counter` hides the customer.
-   */
+  Where the clerk is looking. Anything but `counter` hides the customer.
+  */
   readonly gaze: Gaze
   /**
-   * Whether this customer has been asked to prove their age.
-   *
-   * Undefined means not asked — which on an age-restricted basket is itself
-   * a decision, and a scored one.
-   */
+  Whether this customer has been asked to prove their age.
+  
+  Undefined means not asked — which on an age-restricted basket is itself
+  a decision, and a scored one.
+  */
   readonly idShown: IdOutcome | undefined
   /**
-   * What is actually in the till.
-   *
-   * Money is conserved: every piece in `tray` came out of here, and a
-   * customer's cash goes in at confirm. You work with what you have.
-   */
+  What is actually in the till.
+  
+  Money is conserved: every piece in `tray` came out of here, and a
+  customer's cash goes in at confirm. You work with what you have.
+  */
   readonly drawer: Purse
   /**
-   * The drawer as it stood when this customer's change became owed.
-   *
-   * Grading needs a fixed reference: the live drawer shrinks as the player
-   * counts, so scoring against it would make a clumsy grab look better the
-   * more it took.
-   */
+  The drawer as it stood when this customer's change became owed.
+  
+  Grading needs a fixed reference: the live drawer shrinks as the player
+  counts, so scoring against it would make a clumsy grab look better the
+  more it took.
+  */
   readonly drawerAtTender: Purse
   /**
-   * The float the shift opened with, kept for the end-of-shift books.
-   */
+  The float the shift opened with, kept for the end-of-shift books.
+  */
   readonly openingFloat: Purse
   /**
-   * Yen that should have been taken in: every basket total rung up and paid
-   * for. What the drawer *ought* to hold is this plus the opening float.
-   */
+  Yen that should have been taken in: every basket total rung up and paid
+  for. What the drawer *ought* to hold is this plus the opening float.
+  */
   readonly takings: number
   readonly elapsedMs: number
   /**
-   * When the current customer stepped up.
-   */
+  When the current customer stepped up.
+  */
   readonly customerStartMs: number
   /**
-   * Frozen until this timestamp, after using the lookup chart.
-   */
+  Frozen until this timestamp, after using the lookup chart.
+  */
   readonly frozenUntilMs: number
   readonly tally: ShiftTally
   /**
-   * What is left on the shelves.
-   *
-   * Depletes as you sell and refills only when you walk out back, which is
-   * what gives the gaps between customers a cost.
-   */
+  What is left on the shelves.
+  
+  Depletes as you sell and refills only when you walk out back, which is
+  what gives the gaps between customers a cost.
+  */
   readonly stock: Stock
   /**
-   * Spills and litter waiting to be wiped up.
-   *
-   * Nobody asks you to clean, which is why the job slides — so the pressure
-   * comes from customers minding the state of the shop rather than a score.
-   */
+  Spills and litter waiting to be wiped up.
+  
+  Nobody asks you to clean, which is why the job slides — so the pressure
+  comes from customers minding the state of the shop rather than a score.
+  */
   readonly messes: readonly Mess[]
   /**
-   * Next id to hand a mess. Monotonic so two messes are never confusable.
-   */
+  Next id to hand a mess. Monotonic so two messes are never confusable.
+  */
   readonly nextMessId: number
   /**
-   * When the next mess is due.
-   */
+  When the next mess is due.
+  */
   readonly nextMessAtMs: number
   /**
-   * Milliseconds of this customer's wait already forgiven by apologising.
-   *
-   * Held separately from `customerStartMs` so an apology reads as "some of
-   * that was excused" rather than rewriting when they arrived — which would
-   * also quietly reset the speed bonus.
-   */
+  Milliseconds of this customer's wait already forgiven by apologising.
+  
+  Held separately from `customerStartMs` so an apology reads as "some of
+  that was excused" rather than rewriting when they arrived — which would
+  also quietly reset the speed bonus.
+  */
   readonly forgivenMs: number
   /**
-   * What is on the roller and in the warmer.
-   *
-   * The only part of the shop that changes state while you are doing
-   * something else. Stages are derived from `elapsedMs` rather than stored,
-   * so the same tick that runs the shift clock runs the food — there is no
-   * second timer, and there must never be one.
-   */
+  What is on the roller and in the warmer.
+  
+  The only part of the shop that changes state while you are doing
+  something else. Stages are derived from `elapsedMs` rather than stored,
+  so the same tick that runs the shift clock runs the food — there is no
+  second timer, and there must never be one.
+  */
   readonly hotCase: readonly Cooking[]
   /**
-   * Next id to hand a portion.
-   */
+  Next id to hand a portion.
+  */
   readonly nextCookId: number
   /**
-   * Most recent feedback line, for the UI.
-   */
+  Most recent feedback line, for the UI.
+  */
   readonly message: string
 }
 
 /**
- * Where the customer's goods land when they put the basket down.
- */
+Where the customer's goods land when they put the basket down.
+*/
 const GOODS_AREA = { x: 0.05, y: 0.1, width: 0.35, height: 0.8 }
 
 /**
- * Where the customer drops their money — their side of the counter.
- */
+Where the customer drops their money — their side of the counter.
+*/
 const CASH_AREA = { x: 0.62, y: 0.12, width: 0.32, height: 0.45 }
 
 /**
- * Where a packet fetched from the cigarette wall lands: your side of the
- * beam, so it still has to be passed over like everything else.
- */
+Where a packet fetched from the cigarette wall lands: your side of the
+beam, so it still has to be passed over like everything else.
+*/
 const PACKET_AREA = { x: 0.08, y: 0.62, width: 0.22, height: 0.2 }
 
 
 /**
- * Spreads a purse out as individual coins and notes.
- */
+Spreads a purse out as individual coins and notes.
+*/
 const layOutCash = (rng: Rng, purse: Purse): readonly Placed<Denom>[] => {
   const loose: Denom[] = []
   for (const denom of DENOMS) {
@@ -254,8 +254,8 @@ const layOutCash = (rng: Rng, purse: Purse): readonly Placed<Denom>[] => {
 }
 
 /**
- * Lays a basket out on the counter, one loose item per unit of quantity.
- */
+Lays a basket out on the counter, one loose item per unit of quantity.
+*/
 const layOutBasket = (rng: Rng, customer: Customer): readonly Placed<CounterThing>[] => {
   const loose: CounterThing[] = []
   for (const line of customer.basket) {
@@ -267,11 +267,11 @@ const layOutBasket = (rng: Rng, customer: Customer): readonly Placed<CounterThin
 }
 
 /**
- * Total items the current customer wants rung up.
- *
- * The cigarette packet counts: once fetched it lies on the counter and has to
- * go over the beam like anything else.
- */
+Total items the current customer wants rung up.
+
+The cigarette packet counts: once fetched it lies on the counter and has to
+go over the beam like anything else.
+*/
 export const lineCount = (customer: Customer): number => {
   let count = customer.cigarette === undefined ? 0 : 1
   for (const line of customer.basket) {
@@ -281,21 +281,21 @@ export const lineCount = (customer: Customer): number => {
 }
 
 /**
- * Items rung up before the cigarette request interrupts.
- *
- * The packet is not on the counter until it has been fetched, so the scanning
- * phase pauses one short of the full count. Only ever asked about a customer
- * who wants cigarettes, hence the unconditional subtraction.
- */
+Items rung up before the cigarette request interrupts.
+
+The packet is not on the counter until it has been fetched, so the scanning
+phase pauses one short of the full count. Only ever asked about a customer
+who wants cigarettes, hence the unconditional subtraction.
+*/
 const basketCount = (customer: Customer): number => lineCount(customer) - 1
 
 /**
- * Starts a shift. `shift` is 1-based and drives the shelf escalation.
- *
- * `float` is the drawer it opens with — injectable so a test can start from a
- * till that cannot make change, which is otherwise reachable only by playing
- * a long way into a shift.
- */
+Starts a shift. `shift` is 1-based and drives the shelf escalation.
+
+`float` is the drawer it opens with — injectable so a test can start from a
+till that cannot make change, which is otherwise reachable only by playing
+a long way into a shift.
+*/
 export const createShift = (seed: number, shift = 1, float: Purse = OPENING_FLOAT): ShiftState => {
   const rng = createRng(seed)
   const shelf = shelfSpecForShift(shift)
@@ -335,8 +335,8 @@ export const createShift = (seed: number, shift = 1, float: Purse = OPENING_FLOA
 }
 
 /**
- * What is physically on the counter in front of you, in yen.
- */
+What is physically on the counter in front of you, in yen.
+*/
 export const cashPaid = (state: ShiftState): number => {
   let total = 0
   for (const piece of state.cashOnCounter) {
@@ -346,8 +346,8 @@ export const cashPaid = (state: ShiftState): number => {
 }
 
 /**
- * The money on the counter, as a purse — what goes into the till at confirm.
- */
+The money on the counter, as a purse — what goes into the till at confirm.
+*/
 const paidPurse = (state: ShiftState): Purse => {
   let purse = EMPTY_PURSE
   for (const piece of state.cashOnCounter) {
@@ -357,42 +357,42 @@ const paidPurse = (state: ShiftState): Purse => {
 }
 
 /**
- * Yen still owed to the customer.
- *
- * Measured against the price you *quoted*, not what the till says: the
- * customer paid the number they were told, so that is the number the change
- * has to come back from. Quoting wrong and then making correct change against
- * the wrong quote is a clean-looking transaction with a hole in the drawer.
- */
+Yen still owed to the customer.
+
+Measured against the price you *quoted*, not what the till says: the
+customer paid the number they were told, so that is the number the change
+has to come back from. Quoting wrong and then making correct change against
+the wrong quote is a clean-looking transaction with a hole in the drawer.
+*/
 export const changeOwed = (state: ShiftState): number => cashPaid(state) - quotedPrice(state)
 
 /**
- * The price the customer was told, falling back to the true total before one
- * has been said. Nothing pays out against a quote that does not exist yet.
- */
+The price the customer was told, falling back to the true total before one
+has been said. Nothing pays out against a quote that does not exist yet.
+*/
 const quotedPrice = (state: ShiftState): number => state.quoted ?? customerTotal(state.customer)
 
 /**
- * Whether every item is scanned and any cigarette request is handled.
- */
+Whether every item is scanned and any cigarette request is handled.
+*/
 const canTender = (state: ShiftState): boolean =>
   state.scanned >= lineCount(state.customer) &&
   (state.customer.cigarette === undefined || state.shelfDone)
 
 /**
- * Whether the lookup chart currently has the player frozen.
- */
+Whether the lookup chart currently has the player frozen.
+*/
 const isFrozen = (state: ShiftState): boolean => state.frozenUntilMs > state.elapsedMs
 
 /**
- * Moves to the next customer, folding the finished one into the tally.
- *
- * The generator is copied before it is drawn from, never advanced in place.
- * `Rng` is a mutable object, so reusing the caller's would make `reduce`
- * mutate its own input — the same state reduced twice would yield different
- * customers, and React's StrictMode (which double-invokes reducers in dev)
- * would silently desync dev from prod.
- */
+Moves to the next customer, folding the finished one into the tally.
+
+The generator is copied before it is drawn from, never advanced in place.
+`Rng` is a mutable object, so reusing the caller's would make `reduce`
+mutate its own input — the same state reduced twice would yield different
+customers, and React's StrictMode (which double-invokes reducers in dev)
+would silently desync dev from prod.
+*/
 const advance = (state: ShiftState, tally: ShiftTally, message: string): ShiftState => {
   const rng: Rng = { s: state.rng.s }
   const customer = makeCustomer(rng, state.customer.id + 1, state.shelf)
@@ -459,11 +459,11 @@ const onTick = (state: ShiftState, deltaMs: number): ShiftState => {
 }
 
 /**
- * Wipes up one mess.
- *
- * Allowed in any phase and from any gaze: unlike a restocking trip you are
- * still behind the counter, so this is an interruption rather than an errand.
- */
+Wipes up one mess.
+
+Allowed in any phase and from any gaze: unlike a restocking trip you are
+still behind the counter, so this is an interruption rather than an errand.
+*/
 const onClean = (state: ShiftState, id: number): ShiftState => {
   const remaining = wipe(state.messes, id)
   if (remaining.length === state.messes.length || isFrozen(state)) {
@@ -502,21 +502,21 @@ const onScan = (state: ShiftState): ShiftState => {
 }
 
 /**
- * Says a price out loud — whatever price the clerk typed.
- *
- * The register shows the right number, but saying it is still a thing a human
- * does, and humans transpose digits. Quote the wrong amount and one of two
- * things happens, decided per customer when they walked in:
- *
- * - **They are paying attention.** They query it, you are told, and nothing
- *   is settled: type it again.
- * - **They are not.** They pay the number you said. If you overcharged, the
- *   drawer ends the shift long; if you undercharged, it ends short. Either
- *   way nobody mentions it, and you meet it at cash-up.
- *
- * That asymmetry is the whole mechanic: you never know which kind of customer
- * you got until you have already made the mistake.
- */
+Says a price out loud — whatever price the clerk typed.
+
+The register shows the right number, but saying it is still a thing a human
+does, and humans transpose digits. Quote the wrong amount and one of two
+things happens, decided per customer when they walked in:
+
+- **They are paying attention.** They query it, you are told, and nothing
+  is settled: type it again.
+- **They are not.** They pay the number you said. If you overcharged, the
+  drawer ends the shift long; if you undercharged, it ends short. Either
+  way nobody mentions it, and you meet it at cash-up.
+
+That asymmetry is the whole mechanic: you never know which kind of customer
+you got until you have already made the mistake.
+*/
 const onAnnounce = (state: ShiftState, amount: number): ShiftState => {
   if (state.phase !== 'announcing' || isFrozen(state)) {
     return state
@@ -546,18 +546,18 @@ const onAnnounce = (state: ShiftState, amount: number): ShiftState => {
 }
 
 /**
- * How long being pulled up on a wrong price costs you.
- */
+How long being pulled up on a wrong price costs you.
+*/
 const MISQUOTE_MS = 4000
 
 /**
- * Sweeps one item across the counter.
- *
- * It rings up only if the sweep actually took it through the beam. Stopping
- * short is a miss, and a miss costs nothing but the second it took — you pick
- * the thing up and pass it again, exactly as at a real till. The item stays
- * where you left it either way.
- */
+Sweeps one item across the counter.
+
+It rings up only if the sweep actually took it through the beam. Stopping
+short is a miss, and a miss costs nothing but the second it took — you pick
+the thing up and pass it again, exactly as at a real till. The item stays
+where you left it either way.
+*/
 const onSweep = (state: ShiftState, item: number, to: Point): ShiftState => {
   const piece = state.onCounter[item]
   if (piece === undefined || isFrozen(state) || state.phase !== 'scanning') {
@@ -601,34 +601,34 @@ const onPickSlot = (state: ShiftState, slot: number): ShiftState => {
 }
 
 /**
- * Turns the clerk's head.
- *
- * Costs nothing but the time it takes — a real clerk is not fined for glancing
- * at the clock. The cost is that the shift keeps running while the customer is
- * out of view, so whatever you looked away to find, you had better remember.
- *
- * The message is left alone on purpose: where you are looking is obvious from
- * what is in front of you, and narrating it would trample the line that
- * actually carries information ("No beep. Try again.").
- */
+Turns the clerk's head.
+
+Costs nothing but the time it takes — a real clerk is not fined for glancing
+at the clock. The cost is that the shift keeps running while the customer is
+out of view, so whatever you looked away to find, you had better remember.
+
+The message is left alone on purpose: where you are looking is obvious from
+what is in front of you, and narrating it would trample the line that
+actually carries information ("No beep. Try again.").
+*/
 const onLook = (state: ShiftState, at: Gaze): ShiftState => {
   return isFrozen(state) || state.gaze === at ? state : { ...state, gaze: at }
 }
 
 /**
- * How long handling a portion costs, in milliseconds.
- *
- * Putting food on and taking it off are quick — the pressure is meant to come
- * from the timer running while you serve, not from the handling itself.
- */
+How long handling a portion costs, in milliseconds.
+
+Putting food on and taking it off are quick — the pressure is meant to come
+from the timer running while you serve, not from the handling itself.
+*/
 export const HANDLE_MS = 800
 
 /**
- * Puts one portion on to cook.
- *
- * Refused when the case is full: without a cap the winning move is to fill
- * the roller at the start of the shift and never think about it again.
- */
+Puts one portion on to cook.
+
+Refused when the case is full: without a cap the winning move is to fill
+the roller at the start of the shift and never think about it again.
+*/
 const onCook = (state: ShiftState, what: HotItem): ShiftState => {
   if (isFrozen(state) || state.hotCase.length >= CASE_CAPACITY) {
     return state
@@ -643,12 +643,12 @@ const onCook = (state: ShiftState, what: HotItem): ShiftState => {
 }
 
 /**
- * Takes a portion out: sold if it is good, binned if it was left too long.
- *
- * Both are the same action because they are the same motion — you find out
- * which it was by looking at what you are holding, which is the point of the
- * grace window being visible rather than announced.
- */
+Takes a portion out: sold if it is good, binned if it was left too long.
+
+Both are the same action because they are the same motion — you find out
+which it was by looking at what you are holding, which is the point of the
+grace window being visible rather than announced.
+*/
 const onTakeOut = (state: ShiftState, id: number): ShiftState => {
   const portion = state.hotCase.find((each) => each.id === id)
   if (portion === undefined || isFrozen(state)) {
@@ -680,21 +680,21 @@ const onTakeOut = (state: ShiftState, id: number): ShiftState => {
 }
 
 /**
- * How the person at the counter feels about how long this is taking.
- *
- * Read from state rather than stored, so it can never drift out of step with
- * the clock — there is no anger variable to forget to update.
- */
+How the person at the counter feels about how long this is taking.
+
+Read from state rather than stored, so it can never drift out of step with
+the clock — there is no anger variable to forget to update.
+*/
 export const moodOf = (state: ShiftState): Mood =>
   moodFor(Math.max(0, state.elapsedMs - state.customerStartMs - state.forgivenMs), state.messes)
 
 /**
- * "Sorry to keep you."
- *
- * Costs a beat and buys back part of the wait. Not a full reset: a real
- * apology buys you a moment, and forgiving everything would make the button
- * strictly better than simply being quick.
- */
+"Sorry to keep you."
+
+Costs a beat and buys back part of the wait. Not a full reset: a real
+apology buys you a moment, and forgiving everything would make the button
+strictly better than simply being quick.
+*/
 const onApologise = (state: ShiftState): ShiftState => {
   if (!canApologise(moodOf(state)) || isFrozen(state)) {
     return state
@@ -708,12 +708,12 @@ const onApologise = (state: ShiftState): ShiftState => {
 }
 
 /**
- * Puts more of one item on the shelf.
- *
- * Only out back, and only while nobody is mid-transaction: walking off to the
- * stockroom holding a customer's money is not a thing a clerk does. The cost
- * is `RESTOCK_MS` frozen, which is time the person at the counter is waiting.
- */
+Puts more of one item on the shelf.
+
+Only out back, and only while nobody is mid-transaction: walking off to the
+stockroom holding a customer's money is not a thing a clerk does. The cost
+is `RESTOCK_MS` frozen, which is time the person at the counter is waiting.
+*/
 const onRestock = (state: ShiftState, item: ItemId): ShiftState => {
   if (state.gaze !== 'stockroom' || isFrozen(state) || state.phase !== 'scanning') {
     return state
@@ -747,11 +747,11 @@ const onUseLookup = (state: ShiftState): ShiftState => {
 }
 
 /**
- * Picks one piece out of the drawer and into your hand.
- *
- * Refuses when the drawer has none left: you cannot hand over a coin that is
- * not there, and that shortage is the whole point of a finite till.
- */
+Picks one piece out of the drawer and into your hand.
+
+Refuses when the drawer has none left: you cannot hand over a coin that is
+not there, and that shortage is the whole point of a finite till.
+*/
 const onGive = (state: ShiftState, denom: number): ShiftState => {
   if (state.phase !== 'changing' || !isDenom(denom) || state.drawer[denom] === 0) {
     return state
@@ -764,8 +764,8 @@ const onGive = (state: ShiftState, denom: number): ShiftState => {
 }
 
 /**
- * Puts a piece back in the drawer. The exact inverse of {@link onGive}.
- */
+Puts a piece back in the drawer. The exact inverse of {@link onGive}.
+*/
 const onTakeBack = (state: ShiftState, denom: number): ShiftState => {
   if (state.phase !== 'changing' || !isDenom(denom) || state.tray[denom] === 0) {
     return state
@@ -778,17 +778,17 @@ const onTakeBack = (state: ShiftState, denom: number): ShiftState => {
 }
 
 /**
- * Feedback line for a graded transaction.
- *
- * A wrong total is not one mistake but two, and they behave nothing alike:
- *
- * - **Short-changed the customer** (`drawerDelta > 0`). They count it, they
- *   notice, they say so. You are told the amount because they would tell you.
- * - **Overpaid the customer** (`drawerDelta < 0`). Nobody in the history of
- *   retail has handed money back. The customer leaves happy and the *shop* is
- *   short — which is why it surfaces silently here and lands in the books at
- *   the end of the shift rather than being announced at the counter.
- */
+Feedback line for a graded transaction.
+
+A wrong total is not one mistake but two, and they behave nothing alike:
+
+- **Short-changed the customer** (`drawerDelta > 0`). They count it, they
+  notice, they say so. You are told the amount because they would tell you.
+- **Overpaid the customer** (`drawerDelta < 0`). Nobody in the history of
+  retail has handed money back. The customer leaves happy and the *shop* is
+  short — which is why it surfaces silently here and lands in the books at
+  the end of the shift rather than being announced at the counter.
+*/
 const confirmMessage = (grade: ChangeGrade): string => {
   if (grade.drawerDelta > 0) {
     return `You're ${formatYen(grade.drawerDelta)} short. They counted it.`
@@ -802,11 +802,11 @@ const confirmMessage = (grade: ChangeGrade): string => {
 }
 
 /**
- * Yen the drawer is short of making this customer's change exactly.
- *
- * Zero when it can be made. Only ever a few yen in practice — it is the tail
- * of the amount that ran out of small coins.
- */
+Yen the drawer is short of making this customer's change exactly.
+
+Zero when it can be made. Only ever a few yen in practice — it is the tail
+of the amount that ran out of small coins.
+*/
 const shortfall = (state: ShiftState): number => {
   // The most the drawer can actually pay out toward what is owed. Greedy
   // gives exactly that: it takes the largest pieces that fit at every step,
@@ -821,12 +821,12 @@ const shortfall = (state: ShiftState): number => {
 }
 
 /**
- * Talks your way out of a till that cannot make the change.
- *
- * Every option costs shift time, and the ones the customer can refuse draw
- * their answer from a copy of the generator — never a fresh source — so a
- * seeded shift still replays identically.
- */
+Talks your way out of a till that cannot make the change.
+
+Every option costs shift time, and the ones the customer can refuse draw
+their answer from a copy of the generator — never a fresh source — so a
+seeded shift still replays identically.
+*/
 const onResolve = (state: ShiftState, how: Resolution): ShiftState => {
   if (state.phase !== 'changing' || isFrozen(state)) {
     return state
@@ -883,12 +883,12 @@ const onResolve = (state: ShiftState, how: Resolution): ShiftState => {
 }
 
 /**
- * Asks to see some ID.
- *
- * Costs a couple of seconds and, for the one customer in five who takes
- * offence, a moment of being told off. Asking is never the wrong call — the
- * argument is noise, not a signal.
- */
+Asks to see some ID.
+
+Costs a couple of seconds and, for the one customer in five who takes
+offence, a moment of being told off. Asking is never the wrong call — the
+argument is noise, not a signal.
+*/
 const onAskId = (state: ShiftState): ShiftState => {
   if (state.idShown !== undefined) {
     return state
@@ -906,11 +906,11 @@ const onAskId = (state: ShiftState): ShiftState => {
 }
 
 /**
- * Turns the sale down.
- *
- * The right call for anyone who cannot prove their age, and the wrong one for
- * anyone who can — but the clerk has to decide which, which is the mechanic.
- */
+Turns the sale down.
+
+The right call for anyone who cannot prove their age, and the wrong one for
+anyone who can — but the clerk has to decide which, which is the mechanic.
+*/
 const onRefuseSale = (state: ShiftState): ShiftState => {
   const outcome = state.idShown ?? state.customer.idCard.outcome
   const points = idCheckPoints(outcome, false)
@@ -926,8 +926,8 @@ const onRefuseSale = (state: ShiftState): ShiftState => {
 }
 
 /**
- * What the current customer wants that the shop has not got.
- */
+What the current customer wants that the shop has not got.
+*/
 export const missingFromBasket = (state: ShiftState): readonly ItemId[] =>
   outOfStockIn(
     state.stock,
@@ -935,12 +935,12 @@ export const missingFromBasket = (state: ShiftState): readonly ItemId[] =>
   )
 
 /**
- * Send away a customer whose basket the shop cannot fill.
- *
- * There is no scored penalty beyond the lost sale itself, in keeping with the
- * no-scoreboard rule: the shop simply took no money from someone who wanted to
- * give it some, and that shows up in the takings.
- */
+Send away a customer whose basket the shop cannot fill.
+
+There is no scored penalty beyond the lost sale itself, in keeping with the
+no-scoreboard rule: the shop simply took no money from someone who wanted to
+give it some, and that shows up in the takings.
+*/
 const onLostSale = (state: ShiftState): ShiftState => {
   // Destructured rather than length-checked: `first` being defined is the
   // same fact as the list being non-empty, so this states it once instead of
@@ -955,8 +955,8 @@ const onLostSale = (state: ShiftState): ShiftState => {
 }
 
 /**
- * Points for how the age check was handled on a completed sale.
- */
+Points for how the age check was handled on a completed sale.
+*/
 const idPointsForSale = (state: ShiftState): number => {
   if (!requiresIdCheck(state.customer)) {
     return 0
@@ -1013,9 +1013,9 @@ const onConfirm = (state: ShiftState): ShiftState => {
 }
 
 /**
- * The reducer. Every arm of {@link ShiftEvent} is dispatched explicitly;
- * `noFallthroughCasesInSwitch` keeps it honest.
- */
+The reducer. Every arm of {@link ShiftEvent} is dispatched explicitly;
+`noFallthroughCasesInSwitch` keeps it honest.
+*/
 export const reduce = (state: ShiftState, event: ShiftEvent): ShiftState => {
   // Restart is the one event that must work on a closed shift.
   if (event.kind === 'restart') {

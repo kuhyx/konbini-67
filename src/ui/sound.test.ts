@@ -14,8 +14,8 @@ const quiet: Audible = {
 }
 
 /**
- * A stand-in for an audio element that records what was asked of it.
- */
+A stand-in for an audio element that records what was asked of it.
+*/
 const fakeAudio = (): { element: HTMLAudioElement; played: () => number } => {
   let plays = 0
   const element = {

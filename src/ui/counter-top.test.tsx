@@ -19,9 +19,9 @@ const cash: readonly Placed<Denom>[] = [
 ]
 
 /**
- * Renders the counter with a fixed rectangle so unit coordinates map to real
- * client pixels, and returns the surface drags are aimed at.
- */
+Renders the counter with a fixed rectangle so unit coordinates map to real
+client pixels, and returns the surface drags are aimed at.
+*/
 const mount = (
   properties: Partial<React.ComponentProps<typeof CounterTop>> = {},
 ): { surface: HTMLElement; container: HTMLElement } => {
@@ -131,12 +131,12 @@ describe('CounterTop', () => {
     const drawnSizes = [...container.querySelectorAll<HTMLElement>('.good')].map((element) =>
       Number(element.style.getPropertyValue('--thing-size')),
     )
-    const [big, small] = drawnSizes
+    const [big = 0, small = 1] = drawnSizes
     expect(drawnSizes).toStrictEqual([2.6, 0.55])
     // The spread has to be wide enough to actually read as different objects.
     // The first attempt (1.7 vs 0.7) drew 25.8px next to 21.3px, which nobody
     // could see. Assert the ratio, not just the ordering.
-    expect((big ?? 0) / (small ?? 1)).toBeGreaterThan(3)
+    expect(big / small).toBeGreaterThan(3)
   })
 
   it('draws the beam where the arithmetic says it is', () => {

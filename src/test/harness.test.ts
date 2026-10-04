@@ -4,14 +4,14 @@ import { installRaf } from './harness'
 const REAL_RAF = requestAnimationFrame
 
 /**
- * Guards the harness's own cleanup contract.
- *
- * `installRaf` is called from inside `it(...)` bodies, so its cleanup lives in
- * `src/test/setup.ts` — an `afterEach` added from within a running test does
- * not run after that test, and the stub would leak into the next one. That
- * leak is invisible to every other suite here, because they all install the
- * harness themselves; only this file asserts on a test that does not.
- */
+Guards the harness's own cleanup contract.
+
+`installRaf` is called from inside `it(...)` bodies, so its cleanup lives in
+`src/test/setup.ts` — an `afterEach` added from within a running test does
+not run after that test, and the stub would leak into the next one. That
+leak is invisible to every other suite here, because they all install the
+harness themselves; only this file asserts on a test that does not.
+*/
 describe('the raf harness', () => {
   it('replaces requestAnimationFrame while a test is running', () => {
     installRaf()

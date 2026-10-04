@@ -1,14 +1,14 @@
 /**
- * The shop's noises.
- *
- * Sound is a side effect, so none of it lives in the reducer: the shift stays
- * a pure function of its events, and this layer reacts to what came out. That
- * keeps seeded replay honest and means a test never has to silence anything.
- *
- * Playback is best-effort by design. Browsers refuse audio before the first
- * user gesture, a file may 404, and neither is worth interrupting a shift
- * over — a konbini with a broken speaker still sells onigiri.
- */
+The shop's noises.
+
+Sound is a side effect, so none of it lives in the reducer: the shift stays
+a pure function of its events, and this layer reacts to what came out. That
+keeps seeded replay honest and means a test never has to silence anything.
+
+Playback is best-effort by design. Browsers refuse audio before the first
+user gesture, a file may 404, and neither is worth interrupting a shift
+over — a konbini with a broken speaker still sells onigiri.
+*/
 
 export type Cue =
   | 'beep'
@@ -36,16 +36,16 @@ const FILES: Record<Cue, string> = {
 }
 
 /**
- * How loud each cue is, relative to the others.
- *
- * The scanner beep fires most often, so it sits lowest — a real one is a
- * background tick, not an event.
- *
- * `ready` and `huff` are the two that carry information you cannot get by
- * looking at the counter — food behind you is done, someone in the queue has
- * had enough — so they sit above the noises that merely confirm what you just
- * did with your hands.
- */
+How loud each cue is, relative to the others.
+
+The scanner beep fires most often, so it sits lowest — a real one is a
+background tick, not an event.
+
+`ready` and `huff` are the two that carry information you cannot get by
+looking at the counter — food behind you is done, someone in the queue has
+had enough — so they sit above the noises that merely confirm what you just
+did with your hands.
+*/
 const GAIN: Record<Cue, number> = {
   beep: 0.25,
   reject: 0.3,
@@ -64,53 +64,53 @@ export interface Speaker {
 }
 
 /**
- * The parts of the shift that make a noise when they change.
- */
+The parts of the shift that make a noise when they change.
+*/
 export interface Audible {
   readonly scanned: number
   readonly message: string
   readonly trayPieces: number
   /**
-   * Portions on the roller. Up means one just went on.
-   */
+  Portions on the roller. Up means one just went on.
+  */
   readonly cooking: number
   /**
-   * Portions that have finished cooking and are sitting in the case.
-   *
-   * The one cue the player genuinely needs: the hot case is behind you, so
-   * without a noise the only way to catch a portion coming good is to keep
-   * turning round, which is exactly the fidgeting the mechanic is meant to
-   * replace with a thing you can hear while serving.
-   */
+  Portions that have finished cooking and are sitting in the case.
+  
+  The one cue the player genuinely needs: the hot case is behind you, so
+  without a noise the only way to catch a portion coming good is to keep
+  turning round, which is exactly the fidgeting the mechanic is meant to
+  replace with a thing you can hear while serving.
+  */
   readonly ready: number
   /**
-   * Portions thrown away, from the tally. Monotonic, so a rise is an event.
-   */
+  Portions thrown away, from the tally. Monotonic, so a rise is an event.
+  */
   readonly binned: number
   /**
-   * Trips out back, from the tally.
-   */
+  Trips out back, from the tally.
+  */
   readonly restocked: number
   /**
-   * Messes wiped, from the tally.
-   */
+  Messes wiped, from the tally.
+  */
   readonly cleaned: number
   /**
-   * Whether the customer at the counter has lost patience.
-   *
-   * A boolean rather than a count: the huff is the moment they turn, and it
-   * should sound once when they do, not on every tick they stay cross.
-   */
+  Whether the customer at the counter has lost patience.
+  
+  A boolean rather than a count: the huff is the moment they turn, and it
+  should sound once when they do, not on every tick they stay cross.
+  */
   readonly impatient: boolean
 }
 
 /**
- * Which cues fire on the step from one state to the next.
- *
- * Pure, and deliberately outside React: "what changed since last time" is
- * arithmetic over two values, not something that needs a ref. The component
- * hands over the before and after and plays whatever comes back.
- */
+Which cues fire on the step from one state to the next.
+
+Pure, and deliberately outside React: "what changed since last time" is
+arithmetic over two values, not something that needs a ref. The component
+hands over the before and after and plays whatever comes back.
+*/
 export const cuesFor = (before: Audible, after: Audible): readonly Cue[] => {
   const cues: Cue[] = []
   if (after.scanned > before.scanned) {
@@ -152,9 +152,9 @@ export const cuesFor = (before: Audible, after: Audible): readonly Cue[] => {
 }
 
 /**
- * A speaker that does nothing. Used by tests and by anything running without
- * a DOM, so callers never have to check whether sound exists.
- */
+A speaker that does nothing. Used by tests and by anything running without
+a DOM, so callers never have to check whether sound exists.
+*/
 export const SILENT: Speaker = {
   play: () => {
     // Deliberately nothing.
@@ -162,13 +162,13 @@ export const SILENT: Speaker = {
 }
 
 /**
- * Builds a speaker over a set of preloaded audio elements.
- *
- * `make` is injected so a test can supply its own element factory and assert
- * what was played without a real audio stack. Each cue is cloned on play, so
- * two beeps in quick succession overlap rather than cutting each other off —
- * which is exactly what happens when you sweep two items fast.
- */
+Builds a speaker over a set of preloaded audio elements.
+
+`make` is injected so a test can supply its own element factory and assert
+what was played without a real audio stack. Each cue is cloned on play, so
+two beeps in quick succession overlap rather than cutting each other off —
+which is exactly what happens when you sweep two items fast.
+*/
 export const createSpeaker = (
   make: (source: string) => HTMLAudioElement = (source) => new Audio(source),
 ): Speaker => {

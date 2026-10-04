@@ -2,8 +2,8 @@ import { CIGARETTES } from './catalog'
 import type { Customer } from './types'
 
 /**
- * What the customer says when they step up.
- */
+What the customer says when they step up.
+*/
 export const requestLine = (customer: Customer): string => {
   if (customer.cigarette === undefined) {
     return 'Just these, thanks.'

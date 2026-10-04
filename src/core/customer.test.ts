@@ -11,32 +11,31 @@ import {
 } from './customer'
 import { optimalCount, purseCount, purseValue } from './money'
 import { createRng } from './rng'
-import { type ShelfSpec, shelfSpecForShift } from './shelf'
+import { shelfSpecForShift } from './shelf'
 import type { CigaretteRequest, Customer } from './types'
 
 const shelf = shelfSpecForShift(1)
 
 /**
- * Number of seeds to try when looking for a customer of a given shape.
- *
- * Cigarette requests land on roughly two customers in five, so a miss across
- * this many seeds means the generator is broken, not unlucky.
- */
+Number of seeds to try when looking for a customer of a given shape.
+
+Cigarette requests land on roughly two customers in five, so a miss across
+this many seeds means the generator is broken, not unlucky.
+*/
 const SEED_SEARCH_LIMIT = 60
 
 /**
- * First customer within the seed budget matching `isMatch`.
- *
- * Throws rather than returning undefined so callers assert on a real customer
- * unconditionally, instead of wrapping every assertion in an `if` that would
- * silently pass when nothing matched.
- */
+First customer within the seed budget matching `isMatch`.
+
+Throws rather than returning undefined so callers assert on a real customer
+unconditionally, instead of wrapping every assertion in an `if` that would
+silently pass when nothing matched.
+*/
 const findCustomer = <T extends Customer>(
-  spec: ShelfSpec,
   isMatch: (customer: Customer) => customer is T,
 ): T => {
   for (let seed = 0; seed < SEED_SEARCH_LIMIT; seed += 1) {
-    const customer = makeCustomer(createRng(seed), 1, spec)
+    const customer = makeCustomer(createRng(seed), 1, shelf)
     if (isMatch(customer)) {
       return customer
     }
@@ -45,14 +44,14 @@ const findCustomer = <T extends Customer>(
 }
 
 /**
- * A customer carrying a cigarette request, so the request can be indexed
- * without re-checking for undefined at every use.
- */
+A customer carrying a cigarette request, so the request can be indexed
+without re-checking for undefined at every use.
+*/
 type Smoker = Customer & { readonly cigarette: CigaretteRequest }
 
 /**
- * A customer who asked for nothing behind the counter.
- */
+A customer who asked for nothing behind the counter.
+*/
 type NonSmoker = Customer & { readonly cigarette: undefined }
 
 const isSmoker = (customer: Customer): customer is Smoker =>
@@ -165,14 +164,14 @@ describe('makeCustomer', () => {
   })
 
   it('adds the cigarette price to the total', () => {
-    const customer = findCustomer(shelf, isSmoker)
+    const customer = findCustomer(isSmoker)
     expect(customerTotal(customer)).toBe(
       basketTotal(customer.basket) + CIGARETTES[customer.cigarette.cigarette].price,
     )
   })
 
   it('totals a cigarette-free customer as just the basket', () => {
-    const customer = findCustomer(shelf, isNonSmoker)
+    const customer = findCustomer(isNonSmoker)
     expect(customer.cigarette).toBeUndefined()
     expect(customerTotal(customer)).toBe(basketTotal(customer.basket))
   })

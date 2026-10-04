@@ -5,9 +5,9 @@ import { EMPTY_TALLY } from '../core/types'
 import { ShiftOver } from './shift-over'
 
 /**
- * The whole text of the summary row carrying `label`, so a row is asserted as
- * a label-value pair rather than as a bare number that any field could own.
- */
+The whole text of the summary row carrying `label`, so a row is asserted as
+a label-value pair rather than as a bare number that any field could own.
+*/
 const rowFor = (label: string): string => screen.getByText(label).parentElement?.textContent ?? ''
 
 describe('ShiftOver', () => {

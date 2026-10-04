@@ -10,13 +10,13 @@ export interface ShelfProperties {
 }
 
 /**
- * The cigarette wall.
- *
- * `labelled` shows brand names (shifts 1-2, you are reading), `faded` all but
- * hides them with the lookup chart available at a cost, `bare` gives you
- * nothing but numbers. This escalation is the whole mechanic: memorisation is
- * player-chosen, and lookups-per-shift is a stat you watch fall.
- */
+The cigarette wall.
+
+`labelled` shows brand names (shifts 1-2, you are reading), `faded` all but
+hides them with the lookup chart available at a cost, `bare` gives you
+nothing but numbers. This escalation is the whole mechanic: memorisation is
+player-chosen, and lookups-per-shift is a stat you watch fall.
+*/
 export const Shelf = ({ mode, enabled, lookupOpen, onPick }: ShelfProperties): JSX.Element => (
   <div className="panel">
     <h2>Cigarettes — pick the slot</h2>

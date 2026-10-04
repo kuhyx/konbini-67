@@ -8,30 +8,30 @@ import { useDrag } from './use-drag'
 export interface CounterTopProperties {
   readonly goods: readonly Placed<CounterThing>[]
   /**
-   * The customer's money, lying where they put it. Yours to count, not to
-   * move — counting a scattered pile is the whole point of it being physical.
-   */
+  The customer's money, lying where they put it. Yours to count, not to
+  move — counting a scattered pile is the whole point of it being physical.
+  */
   readonly cash: readonly Placed<Denom>[]
   /**
-   * Whether goods can currently be swept over the beam.
-   */
+  Whether goods can currently be swept over the beam.
+  */
   readonly canScan: boolean
   readonly onSweep: (item: number, to: Point) => void
   /**
-   * Spills and litter waiting to be wiped up.
-   */
+  Spills and litter waiting to be wiped up.
+  */
   readonly messes: readonly Mess[]
   readonly onClean: (id: number) => void
 }
 
 /**
- * What each kind of mess looks like.
- *
- * A click rather than a drag, deliberately: round three settled that the test
- * is whether the physical act is the *interesting* part of the job. Passing an
- * item over a scanner is; wiping a counter is one motion with no decision in
- * it, and making it a drag would be friction cosplaying as depth.
- */
+What each kind of mess looks like.
+
+A click rather than a drag, deliberately: round three settled that the test
+is whether the physical act is the *interesting* part of the job. Passing an
+item over a scanner is; wiping a counter is one motion with no decision in
+it, and making it a drag would be friction cosplaying as depth.
+*/
 const MESS_GLYPH: Record<MessKind, string> = {
   spill: '💧',
   litter: '🗑️',
@@ -39,15 +39,15 @@ const MESS_GLYPH: Record<MessKind, string> = {
 }
 
 /**
- * The counter: your side on the left, the scanner beam down the middle, the
- * customer's money on the right.
- *
- * Goods are dragged over the beam, because passing an item over a scanner is
- * a movement and nothing else. Change is *not* dragged — that was tried and
- * reverted, since choosing which coins make ¥348 is a decision, and decisions
- * belong on buttons. The two halves of the job are different, so the two
- * inputs are different.
- */
+The counter: your side on the left, the scanner beam down the middle, the
+customer's money on the right.
+
+Goods are dragged over the beam, because passing an item over a scanner is
+a movement and nothing else. Change is *not* dragged — that was tried and
+reverted, since choosing which coins make ¥348 is a decision, and decisions
+belong on buttons. The two halves of the job are different, so the two
+inputs are different.
+*/
 export const CounterTop = ({
   goods,
   cash,

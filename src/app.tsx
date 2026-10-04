@@ -23,29 +23,29 @@ import { WallClock } from './ui/wall-clock'
 import { useGameLoop } from './ui/use-game-loop'
 
 /**
- * Seed for the opening shift; "Another shift" advances it.
- */
+Seed for the opening shift; "Another shift" advances it.
+*/
 const FIRST_SEED = 1
 
 export interface AppProperties {
   /**
-   * Injectable so tests can run a shift to its end without real time.
-   */
+  Injectable so tests can run a shift to its end without real time.
+  */
   readonly clock?: Clock
   /**
-   * Opening drawer. Injectable so a test can start from a till that cannot
-   * make change without playing twenty customers to get there.
-   */
+  Opening drawer. Injectable so a test can start from a till that cannot
+  make change without playing twenty customers to get there.
+  */
   readonly float?: Purse
   /**
-   * Where the noises go. Silent by default in tests, which is why this is
-   * injected rather than reached for.
-   */
+  Where the noises go. Silent by default in tests, which is why this is
+  injected rather than reached for.
+  */
   readonly speaker?: Speaker
   /**
-   * Opening shelf stock. Injectable for the same reason as `float`: an empty
-   * shelf is otherwise reachable only by selling six of something first.
-   */
+  Opening shelf stock. Injectable for the same reason as `float`: an empty
+  shelf is otherwise reachable only by selling six of something first.
+  */
   readonly stock?: Stock
 }
 

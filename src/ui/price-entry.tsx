@@ -5,18 +5,18 @@ export interface PriceEntryProperties {
 }
 
 /**
- * Saying the price out loud.
- *
- * You type the number yourself rather than pressing a button that reads it off
- * the register for you. The register is right there — this is not a memory
- * test — but transposing two digits under time pressure is a real thing that
- * real clerks do, and whether it costs you anything depends entirely on
- * whether this particular customer is listening.
- *
- * Deliberately no validation against the true total: a form that refuses the
- * wrong number would be the register correcting you, and then there would be
- * no mistake to make.
- */
+Saying the price out loud.
+
+You type the number yourself rather than pressing a button that reads it off
+the register for you. The register is right there — this is not a memory
+test — but transposing two digits under time pressure is a real thing that
+real clerks do, and whether it costs you anything depends entirely on
+whether this particular customer is listening.
+
+Deliberately no validation against the true total: a form that refuses the
+wrong number would be the register correcting you, and then there would be
+no mistake to make.
+*/
 export const PriceEntry = ({ onAnnounce }: PriceEntryProperties): JSX.Element => {
   const [typed, setTyped] = useState('')
   const amount = Number(typed)

@@ -2,8 +2,8 @@ import { useCallback, useState } from 'react'
 import { pickAt, type Placed, type Point, type Rect, toUnit } from '../core/layout'
 
 /**
- * A drag in progress: which piece is in your hand, and where it currently is.
- */
+A drag in progress: which piece is in your hand, and where it currently is.
+*/
 export interface Drag {
   readonly index: number
   readonly at: Point
@@ -11,16 +11,16 @@ export interface Drag {
 
 export interface UseDragOptions<T> {
   /**
-   * The pieces lying on the surface, in draw order.
-   */
+  The pieces lying on the surface, in draw order.
+  */
   readonly pieces: readonly Placed<T>[]
   /**
-   * Called when the piece is let go, with where it landed.
-   */
+  Called when the piece is let go, with where it landed.
+  */
   readonly onDrop: (index: number, to: Point) => void
   /**
-   * Whether picking anything up is currently allowed.
-   */
+  Whether picking anything up is currently allowed.
+  */
   readonly enabled: boolean
 }
 
@@ -33,24 +33,24 @@ export interface DragHandlers {
 }
 
 /**
- * Picking something up, moving it, and putting it down.
- *
- * This is the one drag implementation in the game: goods are dragged over the
- * scanner beam, and change is dragged out of the drawer and across to the
- * customer. They are the same physical act — grab the nearest piece, move it,
- * let go — so they share the code and therefore feel the same.
- *
- * The element's rectangle is measured here and nowhere else. That is the only
- * real-layout read in the project, and it is deliberately confined to this
- * seam: it converts screen pixels into the unit coordinates the pure core
- * already speaks, so no hit-testing or game rule ever touches the DOM. Tests
- * drive it by supplying their own rectangle, which is why this stays coverable
- * without a layout engine.
- *
- * Pointer events rather than HTML5 drag-and-drop: capture keeps the piece
- * following the cursor even when it leaves the element, and a dropped drag
- * outside the surface still resolves.
- */
+Picking something up, moving it, and putting it down.
+
+This is the one drag implementation in the game: goods are dragged over the
+scanner beam, and change is dragged out of the drawer and across to the
+customer. They are the same physical act — grab the nearest piece, move it,
+let go — so they share the code and therefore feel the same.
+
+The element's rectangle is measured here and nowhere else. That is the only
+real-layout read in the project, and it is deliberately confined to this
+seam: it converts screen pixels into the unit coordinates the pure core
+already speaks, so no hit-testing or game rule ever touches the DOM. Tests
+drive it by supplying their own rectangle, which is why this stays coverable
+without a layout engine.
+
+Pointer events rather than HTML5 drag-and-drop: capture keeps the piece
+following the cursor even when it leaves the element, and a dropped drag
+outside the surface still resolves.
+*/
 export const useDrag = <T,>({ pieces, onDrop, enabled }: UseDragOptions<T>): DragHandlers => {
   const [drag, setDrag] = useState<Drag | undefined>(undefined)
   // The surface is held in state rather than a ref: it changes once, when the

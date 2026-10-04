@@ -8,9 +8,9 @@ import { useDrag } from './use-drag'
 const pieces: readonly Placed<string>[] = [{ what: 'coin', at: { x: 0.2, y: 0.5 }, tilt: 0 }]
 
 /**
- * A surface with no size, standing in for an element that has been detached
- * or has not been laid out.
- */
+A surface with no size, standing in for an element that has been detached
+or has not been laid out.
+*/
 const FLAT: DOMRect = {
   left: 0,
   top: 0,
@@ -24,11 +24,11 @@ const FLAT: DOMRect = {
 }
 
 /**
- * A bare surface driven by the hook, with no game attached.
- *
- * `attach` exists so one test can render the handlers *without* ever giving
- * the hook an element, which is the "nothing is laid out yet" path.
- */
+A bare surface driven by the hook, with no game attached.
+
+`attach` exists so one test can render the handlers *without* ever giving
+the hook an element, which is the "nothing is laid out yet" path.
+*/
 const Surface = ({
   onDrop,
   enabled = true,

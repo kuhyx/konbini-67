@@ -2,23 +2,23 @@ import { vi } from 'vitest'
 
 export interface RafHarness {
   /**
-   * Fire all queued frame callbacks.
-   */
+  Fire all queued frame callbacks.
+  */
   pump: () => void
   pending: () => number
   restore: () => void
 }
 
 /**
- * Replaces requestAnimationFrame with a queue the test drives by hand.
- *
- * All frame-loop coverage in the app funnels through here, because
- * `useGameLoop` is the only hook that owns a loop.
- *
- * Self-restoring via the `afterEach` in `src/test/setup.ts`, so a test calls
- * this and forgets about it — no module-scoped handle is needed to hold the
- * harness between installation and cleanup.
- */
+Replaces requestAnimationFrame with a queue the test drives by hand.
+
+All frame-loop coverage in the app funnels through here, because
+`useGameLoop` is the only hook that owns a loop.
+
+Self-restoring via the `afterEach` in `src/test/setup.ts`, so a test calls
+this and forgets about it — no module-scoped handle is needed to hold the
+harness between installation and cleanup.
+*/
 export const installRaf = (): RafHarness => {
   let queue: FrameRequestCallback[] = []
   let nextHandle = 0

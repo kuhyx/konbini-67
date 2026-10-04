@@ -1,15 +1,15 @@
 /**
- * Everything the clerk can do right now.
- *
- * Which controls exist is a function of the phase, so the bar reads as a list
- * of "what is available" rather than a fixed toolbar with most of it greyed
- * out — a real counter does not show you a "check ID" button while nobody is
- * standing there.
- *
- * Extracted from the app because the conditions accumulated past the point
- * where the render body could be read at a glance; each new mechanic adds at
- * least one, so this is where they go.
- */
+Everything the clerk can do right now.
+
+Which controls exist is a function of the phase, so the bar reads as a list
+of "what is available" rather than a fixed toolbar with most of it greyed
+out — a real counter does not show you a "check ID" button while nobody is
+standing there.
+
+Extracted from the app because the conditions accumulated past the point
+where the render body could be read at a glance; each new mechanic adds at
+least one, so this is where they go.
+*/
 
 import type { JSX } from 'react'
 import type { ShelfMode } from '../core/shelf'
@@ -24,21 +24,21 @@ export interface ActionBarProperties {
   readonly shelfMode: ShelfMode
   readonly lookupPenalty: number
   /**
-   * True on a restricted basket that has not been checked yet. Whether *this*
-   * customer needs asking stays the player's call.
-   */
+  True on a restricted basket that has not been checked yet. Whether *this*
+  customer needs asking stays the player's call.
+  */
   readonly canAskId: boolean
   /**
-   * True only when the drawer genuinely cannot make the change.
-   */
+  True only when the drawer genuinely cannot make the change.
+  */
   readonly isStuck: boolean
   /**
-   * True when the basket wants something the shop has run out of.
-   */
+  True when the basket wants something the shop has run out of.
+  */
   readonly isUnfillable: boolean
   /**
-   * True once the customer minds the wait and there is still time to save it.
-   */
+  True once the customer minds the wait and there is still time to save it.
+  */
   readonly canApologise: boolean
   readonly onAnnounce: (amount: number) => void
   readonly onConfirm: () => void

@@ -1,14 +1,14 @@
 /**
- * The hot case: the roller, the oven and the drinks machine.
- *
- * Two halves. On the left, what you can start; on the right, what is already
- * going. The right-hand side is the only part of this shop that changes while
- * you are looking at something else, so it is drawn as things rather than as
- * a list of timers — you read the case by looking at it.
- *
- * No countdown is shown. Progress is a bar that fills and then a colour that
- * changes, which is as much as you would get from glancing at a real roller.
- */
+The hot case: the roller, the oven and the drinks machine.
+
+Two halves. On the left, what you can start; on the right, what is already
+going. The right-hand side is the only part of this shop that changes while
+you are looking at something else, so it is drawn as things rather than as
+a list of timers — you read the case by looking at it.
+
+No countdown is shown. Progress is a bar that fills and then a colour that
+changes, which is as much as you would get from glancing at a real roller.
+*/
 
 import type { CSSProperties, JSX } from 'react'
 import {
@@ -25,12 +25,12 @@ import { formatYen } from '../core/money'
 export interface HotCaseProperties {
   readonly cases: readonly Cooking[]
   /**
-   * Shift time, for working out how far along everything is.
-   */
+  Shift time, for working out how far along everything is.
+  */
   readonly nowMs: number
   /**
-   * False while frozen: your hands are busy.
-   */
+  False while frozen: your hands are busy.
+  */
   readonly enabled: boolean
   readonly onCook: (what: HotItem) => void
   readonly onTakeOut: (id: number) => void

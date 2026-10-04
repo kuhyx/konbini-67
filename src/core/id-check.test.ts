@@ -17,8 +17,8 @@ import type { Customer } from './types'
 const shelf = shelfSpecForShift(1)
 
 /**
- * First customer within the seed budget matching a predicate.
- */
+First customer within the seed budget matching a predicate.
+*/
 const findCustomer = (isMatch: (customer: Customer) => boolean): Customer => {
   for (let seed = 0; seed < 200; seed += 1) {
     const customer = makeCustomer(createRng(seed), 1, shelf)

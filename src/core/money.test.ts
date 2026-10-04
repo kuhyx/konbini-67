@@ -93,14 +93,14 @@ describe('money', () => {
 })
 
 /**
- * Bounded-coin DP: the fewest pieces making `amount` from `drawer`, or
- * undefined when it cannot be made.
- *
- * This is a test oracle, not production code. `boundedChange` ships greedy
- * because greedy is provably safe for a *divisible* denomination chain, and
- * this DP is what proves that claim keeps holding — see the note on
- * `boundedChange` for why that precondition is worth guarding.
- */
+Bounded-coin DP: the fewest pieces making `amount` from `drawer`, or
+undefined when it cannot be made.
+
+This is a test oracle, not production code. `boundedChange` ships greedy
+because greedy is provably safe for a *divisible* denomination chain, and
+this DP is what proves that claim keeps holding — see the note on
+`boundedChange` for why that precondition is worth guarding.
+*/
 const dpFewestPieces = (amount: number, drawer: Purse): number | undefined => {
   const best: number[] = Array.from({ length: amount + 1 }, () => Infinity)
   best[0] = 0
@@ -119,8 +119,8 @@ const dpFewestPieces = (amount: number, drawer: Purse): number | undefined => {
 }
 
 /**
- * A seeded drawer with a realistic mix: plenty of small change, few notes.
- */
+A seeded drawer with a realistic mix: plenty of small change, few notes.
+*/
 const seededDrawer = (rng: Rng): Purse => {
   const out: Record<Denom, number> = { ...EMPTY_PURSE }
   const caps: Record<Denom, number> = {

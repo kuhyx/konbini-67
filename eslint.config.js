@@ -20,7 +20,7 @@ export default defineConfig(
       react.configs['strict-type-checked'],
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
-      unicorn.configs['flat/recommended'],
+      unicorn.configs.recommended,
       sonarjs.configs.recommended,
     ],
     languageOptions: {

@@ -6,21 +6,21 @@ export interface WallClockProperties {
 }
 
 /**
- * Twelve marks around the face. Only the quarters get a long tick, which is
- * what makes the in-between positions something you judge.
- */
+Twelve marks around the face. Only the quarters get a long tick, which is
+what makes the in-between positions something you judge.
+*/
 const MARKS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 /**
- * The analog clock on the wall.
- *
- * Hands and nothing else — no digits anywhere on it. Reading an analog face is
- * a small act of work, and doing that under time pressure is the mechanic; a
- * digital readout would just be the countdown again in a different font.
- *
- * It only renders while the player is actually looking at it, so it cannot be
- * consulted for free out of the corner of an eye.
- */
+The analog clock on the wall.
+
+Hands and nothing else — no digits anywhere on it. Reading an analog face is
+a small act of work, and doing that under time pressure is the mechanic; a
+digital readout would just be the countdown again in a different font.
+
+It only renders while the player is actually looking at it, so it cannot be
+consulted for free out of the corner of an eye.
+*/
 export const WallClock = ({ elapsedMs }: WallClockProperties): JSX.Element => {
   const angles = handAngles(clockAt(elapsedMs))
   return (

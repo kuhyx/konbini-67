@@ -1,10 +1,10 @@
 /**
- * The store's goods, as data tables.
- *
- * Escalation and content live in `Record<UnionId, Spec>` tables with a
- * matching `ORDER` tuple, so a single loop covers every entry. Branching code
- * costs a test per branch; a data table costs one loop.
- */
+The store's goods, as data tables.
+
+Escalation and content live in `Record<UnionId, Spec>` tables with a
+matching `ORDER` tuple, so a single loop covers every entry. Branching code
+costs a test per branch; a data table costs one loop.
+*/
 
 export const STORE_NAME = '6/7'
 
@@ -30,23 +30,23 @@ export interface ItemSpec {
   readonly emoji: string
   readonly price: number
   /**
-   * Requires an age check before it can be sold.
-   */
+  Requires an age check before it can be sold.
+  */
   readonly ageRestricted: boolean
   /**
-   * Roughly how big the thing is, as a multiplier on the base draw size.
-   *
-   * A vinyl umbrella is not the size of a stick of Pocky, and drawing them
-   * identically made the counter read as a row of icons rather than a pile of
-   * shopping. It is a gameplay value too: a bigger thing is easier to grab.
-   */
+  Roughly how big the thing is, as a multiplier on the base draw size.
+  
+  A vinyl umbrella is not the size of a stick of Pocky, and drawing them
+  identically made the counter read as a row of icons rather than a pile of
+  shopping. It is a gameplay value too: a bigger thing is easier to grab.
+  */
   readonly size: number
 }
 
 /**
- * Iteration order for the catalogue. Every table-driven test loops this, so a
- * new item is covered the moment it is added here.
- */
+Iteration order for the catalogue. Every table-driven test loops this, so a
+new item is covered the moment it is added here.
+*/
 export const ITEM_ORDER = [
   'onigiri-tuna',
   'onigiri-salmon',
@@ -84,12 +84,12 @@ export const ITEMS: Readonly<Record<ItemId, ItemSpec>> = {
 }
 
 /**
- * Cigarettes, requested by shelf number.
- *
- * This is the mechanic no other store sim has: in a real konbini the customer
- * says "Mevius, number 47" — or just "47" — and the clerk turns and grabs it
- * without looking.
- */
+Cigarettes, requested by shelf number.
+
+This is the mechanic no other store sim has: in a real konbini the customer
+says "Mevius, number 47" — or just "47" — and the clerk turns and grabs it
+without looking.
+*/
 export type CigaretteId =
   | 'mevius'
   | 'seven-stars'
@@ -107,8 +107,8 @@ export type CigaretteId =
 export interface CigaretteSpec {
   readonly label: string
   /**
-   * The number the customer says out loud.
-   */
+  The number the customer says out loud.
+  */
   readonly slot: number
   readonly price: number
 }
@@ -144,20 +144,20 @@ export const CIGARETTES: Readonly<Record<CigaretteId, CigaretteSpec>> = {
 }
 
 /**
- * Anything that can be lying on the counter waiting to be rung up.
- *
- * A packet of cigarettes is a physical object exactly like an onigiri is: the
- * clerk fetches it from the wall, puts it down, and passes it over the beam.
- * Tagging the two apart keeps the catalogue tables separate while letting the
- * counter hold a single list.
- */
+Anything that can be lying on the counter waiting to be rung up.
+
+A packet of cigarettes is a physical object exactly like an onigiri is: the
+clerk fetches it from the wall, puts it down, and passes it over the beam.
+Tagging the two apart keeps the catalogue tables separate while letting the
+counter hold a single list.
+*/
 export type CounterThing =
   | { readonly kind: 'item'; readonly id: ItemId }
   | { readonly kind: 'cigarette'; readonly id: CigaretteId }
 
 /**
- * How a thing on the counter looks and what it is called.
- */
+How a thing on the counter looks and what it is called.
+*/
 export const describeThing = (
   thing: CounterThing,
 ): { readonly label: string; readonly emoji: string; readonly size: number } =>
@@ -167,15 +167,15 @@ export const describeThing = (
       { label: CIGARETTES[thing.id].label, emoji: '🚬', size: 0.8 }
 
 /**
- * Slot number -> brand, derived from {@link CIGARETTES} so the two can never
- * drift apart.
- */
+Slot number -> brand, derived from {@link CIGARETTES} so the two can never
+drift apart.
+*/
 export const SLOT_TO_CIGARETTE: ReadonlyMap<number, CigaretteId> = new Map(
   CIGARETTE_ORDER.map((id) => [CIGARETTES[id].slot, id] as const),
 )
 
 /**
- * Every slot on the wall, ascending — including empty ones, because the
- * gaps are part of what makes the numbers hard to remember.
- */
+Every slot on the wall, ascending — including empty ones, because the
+gaps are part of what makes the numbers hard to remember.
+*/
 export const SHELF_SLOTS: readonly number[] = Array.from({ length: 48 }, (_, index) => index + 1)

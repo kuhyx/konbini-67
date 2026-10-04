@@ -34,11 +34,11 @@ import {
 } from './types'
 
 /**
- * Rings up everything currently lying on the counter.
- *
- * Stops of its own accord when the scanning phase ends — either because the
- * basket is done or because the customer's cigarette request interrupts.
- */
+Rings up everything currently lying on the counter.
+
+Stops of its own accord when the scanning phase ends — either because the
+basket is done or because the customer's cigarette request interrupts.
+*/
 const scanAll = (start: ShiftState): ShiftState => {
   let state = start
   for (let n = 0; n < lineCount(start.customer); n += 1) {
@@ -51,17 +51,17 @@ const scanAll = (start: ShiftState): ShiftState => {
 }
 
 /**
- * How many things the customer physically put down.
- *
- * One short of {@link lineCount} when cigarettes are wanted: that packet is
- * behind the counter until the clerk turns round and fetches it.
- */
+How many things the customer physically put down.
+
+One short of {@link lineCount} when cigarettes are wanted: that packet is
+behind the counter until the clerk turns round and fetches it.
+*/
 const basketOnly = (state: ShiftState): number =>
   lineCount(state.customer) - (state.customer.cigarette === undefined ? 0 : 1)
 
 /**
- * Hands over the fewest-coins correct change.
- */
+Hands over the fewest-coins correct change.
+*/
 const payExact = (start: ShiftState): ShiftState => {
   let state = start
   const optimal = greedyChange(changeOwed(state))
@@ -74,8 +74,8 @@ const payExact = (start: ShiftState): ShiftState => {
 }
 
 /**
- * Rings up everything, fetching the cigarettes when asked.
- */
+Rings up everything, fetching the cigarettes when asked.
+*/
 const ringUp = (start: ShiftState): ShiftState => {
   let state = scanAll(start)
   if (state.phase === 'shelf' && state.customer.cigarette !== undefined) {
@@ -88,8 +88,8 @@ const ringUp = (start: ShiftState): ShiftState => {
 }
 
 /**
- * Plays one customer perfectly: scan, right slot, announce, exact change.
- */
+Plays one customer perfectly: scan, right slot, announce, exact change.
+*/
 const servePerfectly = (start: ShiftState): ShiftState => {
   const rung = ringUp(start)
   const told = reduce(rung, { kind: 'announce', amount: customerTotal(rung.customer) })
@@ -97,12 +97,12 @@ const servePerfectly = (start: ShiftState): ShiftState => {
 }
 
 /**
- * A representative event for each kind in the union.
- *
- * Extracted from the loop that exercises every kind: the payload-carrying
- * kinds need distinct shapes, and building them here keeps that dispatch out
- * of the test body.
- */
+A representative event for each kind in the union.
+
+Extracted from the loop that exercises every kind: the payload-carrying
+kinds need distinct shapes, and building them here keeps that dispatch out
+of the test body.
+*/
 const sampleEvent = (kind: (typeof EVENT_KIND_ORDER)[number]): ShiftEvent => {
   switch (kind) {
     case 'give':
@@ -168,14 +168,14 @@ const baskets = (seed: number): string => {
 }
 
 /**
- * A shift whose first customer wants cigarettes, at the given tier.
- */
-const cigShift = (shiftNo: number): ShiftState => {
+A shift whose first customer wants cigarettes, at the given tier.
+*/
+const cigShift = (): ShiftState => {
   let seed = 1
-  while (createShift(seed, shiftNo).customer.cigarette === undefined) {
+  while (createShift(seed, 1).customer.cigarette === undefined) {
     seed += 1
   }
-  return createShift(seed, shiftNo)
+  return createShift(seed, 1)
 }
 
 const changing = (): ShiftState => {
@@ -190,44 +190,44 @@ const changing = (): ShiftState => {
 
 
 /**
- * A shift whose drawer has been stripped of everything but big notes, so the
- * change genuinely cannot be made.
- */
+A shift whose drawer has been stripped of everything but big notes, so the
+change genuinely cannot be made.
+*/
 const stuck = (): ShiftState => {
   const bigNotesOnly = { ...EMPTY_PURSE, 10_000: 2, 5000: 2, 1000: 2 }
   return { ...changing(), drawer: bigNotesOnly, drawerAtTender: bigNotesOnly }
 }
 
 /**
- * A shift whose first customer wants cigarettes AND carries the given ID.
- */
-const cigShiftWithOutcome = (from: number, outcome: IdOutcome): ShiftState => {
-  let seed = from
-  while (seed < from + 400) {
+A shift whose first customer wants cigarettes AND carries the given ID.
+*/
+const cigShiftWithOutcome = (outcome: IdOutcome): ShiftState => {
+  let seed = 1
+  while (seed < 401) {
     const state = createShift(seed)
     if (state.customer.cigarette !== undefined && state.customer.idCard.outcome === outcome) {
       return state
     }
     seed += 1
   }
-  throw new Error(`no ${outcome} cigarette customer near seed ${String(from)}`)
+  throw new Error(`no ${outcome} cigarette customer within 400 seeds`)
 }
 
 /**
- * Serves a customer through to confirm, checking their ID on the way.
- */
+Serves a customer through to confirm, checking their ID on the way.
+*/
 const serveWithId = (start: ShiftState): ShiftState =>
   servePerfectly(reduce(start, { kind: 'ask-id' }))
 
 /**
- * The same, but never looking at the ID at all.
- */
+The same, but never looking at the ID at all.
+*/
 const serveWithoutId = (start: ShiftState): ShiftState => servePerfectly(start)
 
 /**
- * A shift whose first customer wants cigarettes, so the basket needs an ID.
- */
-const restricted = (): ShiftState => cigShift(1)
+A shift whose first customer wants cigarettes, so the basket needs an ID.
+*/
+const restricted = (): ShiftState => cigShift()
 
 describe('createShift', () => {
   it('opens on the first customer with an empty tally', () => {
@@ -327,7 +327,7 @@ describe('scanning', () => {
 describe('the cigarette shelf', () => {
 
   it('accepts the right slot without penalty', () => {
-    const state = scanAll(cigShift(1))
+    const state = scanAll(cigShift())
     const brand = state.customer.cigarette?.cigarette ?? 'echo'
     const after = reduce(state, { kind: 'pick-slot', slot: CIGARETTES[brand].slot })
     expect(after.tally.wrongBrand).toBe(0)
@@ -340,7 +340,7 @@ describe('the cigarette shelf', () => {
   })
 
   it('counts a wrong slot against you but moves on', () => {
-    const state = scanAll(cigShift(1))
+    const state = scanAll(cigShift())
     const wanted = CIGARETTES[state.customer.cigarette?.cigarette ?? 'echo'].slot
     const wrong = wanted === 3 ? 5 : 3
     const after = reduce(state, { kind: 'pick-slot', slot: wrong })
@@ -351,7 +351,7 @@ describe('the cigarette shelf', () => {
   })
 
   it('counts an empty slot as wrong', () => {
-    const state = scanAll(cigShift(1))
+    const state = scanAll(cigShift())
     // Slot 1 holds no brand in the catalogue.
     expect(reduce(state, { kind: 'pick-slot', slot: 1 }).tally.wrongBrand).toBe(1)
   })
@@ -849,7 +849,7 @@ describe('age checks', () => {
   it('judges a refusal on the real card even if you never looked', () => {
     // Turning someone away on a hunch still gets graded against the truth —
     // you were right or you were not, whether or not you checked.
-    const state = cigShiftWithOutcome(1, 'underage')
+    const state = cigShiftWithOutcome('underage')
     const blind = reduce(state, { kind: 'refuse-sale' })
     const checked = reduce(reduce(state, { kind: 'ask-id' }), { kind: 'refuse-sale' })
     expect(blind.tally.score).toBe(checked.tally.score)
@@ -866,8 +866,8 @@ describe('age checks', () => {
   it('charges heavily for selling to someone underage', () => {
     // Compared against the same sale to someone old enough: the change and
     // speed points are identical, so the gap is exactly the ID call.
-    const underage = serveWithId(cigShiftWithOutcome(1, 'underage'))
-    const legal = serveWithId(cigShiftWithOutcome(1, 'valid'))
+    const underage = serveWithId(cigShiftWithOutcome('underage'))
+    const legal = serveWithId(cigShiftWithOutcome('valid'))
     expect(underage.tally.score).toBeLessThan(legal.tally.score)
     expect(legal.tally.score - underage.tally.score).toBe(
       ID_SCORE.soldLegally - ID_SCORE.soldUnderage,
@@ -876,7 +876,7 @@ describe('age checks', () => {
 
   it('charges for skipping the check on a restricted basket', () => {
     // Same customer, same money: the only difference is having looked.
-    const state = cigShiftWithOutcome(1, 'valid')
+    const state = cigShiftWithOutcome('valid')
     const withCheck = serveWithId(state)
     const without = serveWithoutId(state)
     expect(without.tally.score).toBeLessThan(withCheck.tally.score)
@@ -978,14 +978,14 @@ describe('sweeping items over the beam', () => {
 })
 
 /**
- * Rings a seeded shift all the way up to the point of saying a price.
- */
+Rings a seeded shift all the way up to the point of saying a price.
+*/
 const scanAllThrough = (seed: number): ShiftState => ringUp(createShift(seed))
 
 /**
- * A customer who is listening, and one who is not. Both are needed: the whole
- * mechanic is that you cannot tell which you have until afterwards.
- */
+A customer who is listening, and one who is not. Both are needed: the whole
+mechanic is that you cannot tell which you have until afterwards.
+*/
 const attentive = (): ShiftState => {
   let seed = 1
   while (!createShift(seed).customer.willQueryThePrice) {
@@ -1058,13 +1058,13 @@ describe('saying the price out loud', () => {
 })
 
 /**
- * A shift where the clerk has walked out to the stockroom.
- */
+A shift where the clerk has walked out to the stockroom.
+*/
 const outBack = (): ShiftState => reduce(createShift(1), { kind: 'look', at: 'stockroom' })
 
 /**
- * A shift whose first customer wants something the shop has run out of.
- */
+A shift whose first customer wants something the shop has run out of.
+*/
 const wanting = (): ShiftState => {
   const fresh = createShift(1)
   const [line] = fresh.customer.basket
@@ -1161,8 +1161,8 @@ describe('running out of stock', () => {
 })
 
 /**
- * A shift run forward far enough that something has been dropped.
- */
+A shift run forward far enough that something has been dropped.
+*/
 const dirty = (count = 1): ShiftState => {
   let state = createShift(1)
   // Bounded: past the patience limit the customer walks out and `advance`
@@ -1298,8 +1298,8 @@ describe('patience', () => {
 })
 
 /**
- * A shift with one portion already on.
- */
+A shift with one portion already on.
+*/
 const cooking = (what: HotItem = 'coffee'): ShiftState =>
   reduce(createShift(1), { kind: 'cook', what })
 

@@ -14,12 +14,12 @@ import { asSurface, dragOn } from './test/drag'
 import { installRaf } from './test/harness'
 
 /**
- * Turns to the shelf and picks a slot, if this customer wanted cigarettes.
- *
- * The shelf is no longer on screen by default — reaching it is a head-turn,
- * so every test that gets past a cigarette request has to make that turn the
- * same way a player would.
- */
+Turns to the shelf and picks a slot, if this customer wanted cigarettes.
+
+The shelf is no longer on screen by default — reaching it is a head-turn,
+so every test that gets past a cigarette request has to make that turn the
+same way a player would.
+*/
 const handleCigarettesIfAsked = async (): Promise<void> => {
   const turn = screen.queryByRole('button', { name: /Turn to the shelf/i })
   if (turn === null) {
@@ -38,8 +38,8 @@ const handleCigarettesIfAsked = async (): Promise<void> => {
 
 
 /**
- * The counter surface, prepared so pointer drags land where the test aims.
- */
+The counter surface, prepared so pointer drags land where the test aims.
+*/
 const surface = (): HTMLElement => {
   const node = document.querySelector('.counter-top')
   if (node === null) {
@@ -49,16 +49,16 @@ const surface = (): HTMLElement => {
 }
 
 /**
- * How many loose things are currently on the counter.
- */
+How many loose things are currently on the counter.
+*/
 const looseGoods = (): number => document.querySelectorAll('.good').length
 
 /**
- * Rings up every item, whatever the basket happens to hold.
- *
- * Each one is physically swept over the beam. A successful sweep takes that
- * item off the counter, so the pile is re-read every pass rather than cached.
- */
+Rings up every item, whatever the basket happens to hold.
+
+Each one is physically swept over the beam. A successful sweep takes that
+item off the counter, so the pile is re-read every pass rather than cached.
+*/
 const scanEverything = (): void => {
   for (let n = 0; n < 14; n += 1) {
     const [first] = [...document.querySelectorAll('.good')]
@@ -71,19 +71,19 @@ const scanEverything = (): void => {
 }
 
 /**
- * Where a rendered piece sits, read back out of its inline percentages.
- *
- * The component positions everything from the game's own unit coordinates, so
- * this recovers the point a drag has to start from to grab it.
- */
+Where a rendered piece sits, read back out of its inline percentages.
+
+The component positions everything from the game's own unit coordinates, so
+this recovers the point a drag has to start from to grab it.
+*/
 const unitOf = (node: HTMLElement): { x: number; y: number } => ({
   x: Number(node.style.left.replace('%', '')) / 100,
   y: Number(node.style.top.replace('%', '')) / 100,
 })
 
 /**
- * Says the total out loud, which is what puts the customer's money down.
- */
+Says the total out loud, which is what puts the customer's money down.
+*/
 const announceTotal = async (amount?: number): Promise<void> => {
   const field = screen.queryByLabelText('Price to say out loud')
   if (field === null) {
@@ -99,8 +99,8 @@ const announceTotal = async (amount?: number): Promise<void> => {
 }
 
 /**
- * Rings everything up, fetches any cigarettes, and announces the price.
- */
+Rings everything up, fetches any cigarettes, and announces the price.
+*/
 const ringUpAndAnnounce = async (): Promise<void> => {
   scanEverything()
   await handleCigarettesIfAsked()
@@ -110,10 +110,10 @@ const ringUpAndAnnounce = async (): Promise<void> => {
 }
 
 /**
- * Takes one piece out of the drawer and pushes it across to the customer.
- */
-const handOver = async (denom: string): Promise<void> => {
-  await userEvent.click(screen.getByLabelText(`Give ${denom}`))
+Takes one piece out of the drawer and pushes it across to the customer.
+*/
+const handOver = async (): Promise<void> => {
+  await userEvent.click(screen.getByLabelText('Give ¥100'))
 }
 
 describe('App', () => {
@@ -175,7 +175,7 @@ describe('App', () => {
     installRaf()
     render(<App />)
     await ringUpAndAnnounce()
-    await handOver('¥100')
+    await handOver()
     expect(screen.getByText('×1')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /That’s everything/ })).toBeEnabled()
   })
@@ -184,7 +184,7 @@ describe('App', () => {
     installRaf()
     render(<App />)
     await ringUpAndAnnounce()
-    await handOver('¥100')
+    await handOver()
     expect(screen.getByText('×1')).toBeInTheDocument()
     await userEvent.click(screen.getByLabelText('Take back ¥100'))
     expect(screen.queryByText('×1')).not.toBeInTheDocument()
