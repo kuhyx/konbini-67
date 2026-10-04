@@ -60,7 +60,7 @@ strict-type-checked, @eslint-react, unicorn and sonarjs.
 ## Status
 
 M0 is built, plus the physicality pass that came out of playing it — three
-rounds of it now (`SPEC-physicality.md`): the shift clock is an analog wall
+rounds of it now (`DOCS-konbini-physicality.md`): the shift clock is an analog wall
 clock you read the hands on, the cigarette shelf is behind you, the till holds
 a finite amount of money you can run out of, beer and tobacco need an ID check
 you have to make the call on, you type the price yourself and can mistype it,
