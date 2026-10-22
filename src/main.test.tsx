@@ -38,22 +38,6 @@ describe('mount', () => {
     expect(mountPoint.textContent).toContain('6/7')
   })
 
-  // The build prerenders a no-JS description of the game into #root for agents
-  // and crawlers (src/site). The game must replace it, not render beside it.
-  it('replaces the prerendered no-JS content in #root', () => {
-    const mountPoint = document.createElement('div')
-    mountPoint.id = 'root'
-    mountPoint.innerHTML = '<main><h1>prerendered-for-agents</h1></main>'
-    document.body.append(mountPoint)
-
-    act(() => {
-      root = mount()
-    })
-
-    expect(mountPoint.textContent).not.toContain('prerendered-for-agents')
-    expect(mountPoint.textContent).toContain('6/7')
-  })
-
   it('does nothing when there is no mount point', () => {
     act(() => {
       root = mount()

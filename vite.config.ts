@@ -1,15 +1,12 @@
 /// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
-import { agentReady } from './src/site/plugin.ts'
 
 export default defineConfig({
   // Relative asset URLs: itch.io serves the build from a nested CDN path, where
   // the default absolute `/assets/...` would 404.
   base: './',
-  // agentReady: prerendered no-JS pages, markdown mirrors and discovery files,
-  // all generated from src/site/routes.ts and the one SITE_URL constant.
-  plugins: [react(), agentReady()],
+  plugins: [react()],
   test: {
     globals: true,
     environment: 'jsdom',
