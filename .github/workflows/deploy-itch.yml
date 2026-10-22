@@ -94,7 +94,7 @@ jobs:
       - uses: actions/setup-node@v5
         if: steps.gate.outputs.go == 'true' && steps.changed.outputs.deploy == 'true'
         with:
-          node-version: "24.21.0"
+          node-version: "24.22.1"
           cache: pnpm
 
       - name: Install dependencies

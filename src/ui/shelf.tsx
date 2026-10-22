@@ -43,9 +43,9 @@ export const Shelf = ({ mode, enabled, lookupOpen, onPick }: ShelfProperties): J
             }}
           >
             <span>{slot}</span>
-            {spec !== undefined && mode !== 'bare' ? (
+            {spec === undefined || mode === 'bare' ? undefined : (
               <span className="brand">{spec.label}</span>
-            ) : undefined}
+            )}
           </button>
         )
       })}
