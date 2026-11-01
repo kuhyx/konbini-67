@@ -1,14 +1,13 @@
 import { useCallback, useMemo, useReducer, useState, type JSX } from 'react'
-import { type ItemId, STORE_NAME } from './core/catalog'
+import { STORE_NAME } from './core/catalog'
 import { type Clock, realClock } from './core/clock'
 import { requiresIdCheck } from './core/id-check'
-import type { Point } from './core/layout'
-import { canMakeChange, type Denom, purseCount, type Purse } from './core/money'
+import { canMakeChange, purseCount, type Purse } from './core/money'
 import { changeOwed, createShift, missingFromBasket, moodOf, reduce } from './core/shift'
 import { canApologise as canSaySorry } from './core/patience'
 import type { Stock } from './core/stock'
-import { type HotItem, stageOf } from './core/hotfood'
-import { GAZE, type Gaze, type Resolution } from './core/types'
+import { stageOf } from './core/hotfood'
+import { GAZE } from './core/types'
 import { Counter } from './ui/counter'
 import { CounterTop } from './ui/counter-top'
 import { ActionBar } from './ui/action-bar'
@@ -21,6 +20,7 @@ import { useSoundCues } from './ui/use-sound-cues'
 import { Till } from './ui/till'
 import { WallClock } from './ui/wall-clock'
 import { useGameLoop } from './ui/use-game-loop'
+import { useShiftActions } from './ui/use-shift-actions'
 
 /**
 Seed for the opening shift; "Another shift" advances it.
@@ -95,57 +95,25 @@ export const App = ({
     dispatch({ kind: 'restart', seed: next, shift: shiftNo + 1 })
   }, [seed, shiftNo])
 
-  const give = useCallback((denom: Denom) => {
-    dispatch({ kind: 'give', denom })
-  }, [])
-  const takeBack = useCallback((denom: Denom) => {
-    dispatch({ kind: 'take-back', denom })
-  }, [])
-  const announce = useCallback((amount: number) => {
-    dispatch({ kind: 'announce', amount })
-  }, [])
-  const pick = useCallback((slot: number) => {
-    dispatch({ kind: 'pick-slot', slot })
-  }, [])
-  const look = useCallback((at: Gaze) => {
-    dispatch({ kind: 'look', at })
-  }, [])
-  const resolve = useCallback((how: Resolution) => {
-    dispatch({ kind: 'resolve', how })
-  }, [])
-  const sweep = useCallback((item: number, to: Point) => {
-    dispatch({ kind: 'sweep', item, to })
-  }, [])
-  const askId = useCallback(() => {
-    dispatch({ kind: 'ask-id' })
-  }, [])
-  const refuseSale = useCallback(() => {
-    dispatch({ kind: 'refuse-sale' })
-  }, [])
-  const doRestock = useCallback((item: ItemId) => {
-    dispatch({ kind: 'restock', item })
-  }, [])
-  const turnAway = useCallback(() => {
-    dispatch({ kind: 'turn-away' })
-  }, [])
-  const clean = useCallback((id: number) => {
-    dispatch({ kind: 'clean', id })
-  }, [])
-  const cook = useCallback((what: HotItem) => {
-    dispatch({ kind: 'cook', what })
-  }, [])
-  const takeOut = useCallback((id: number) => {
-    dispatch({ kind: 'take-out', id })
-  }, [])
-  const apologise = useCallback(() => {
-    dispatch({ kind: 'apologise' })
-  }, [])
-  const confirm = useCallback(() => {
-    dispatch({ kind: 'confirm' })
-  }, [])
-  const useLookup = useCallback(() => {
-    dispatch({ kind: 'use-lookup' })
-  }, [])
+  const {
+    give,
+    takeBack,
+    announce,
+    pick,
+    look,
+    resolve,
+    sweep,
+    askId,
+    refuseSale,
+    doRestock,
+    turnAway,
+    clean,
+    cook,
+    takeOut,
+    apologise,
+    confirm,
+    useLookup,
+  } = useShiftActions(dispatch)
 
   if (state.phase === 'closed') {
     return (
